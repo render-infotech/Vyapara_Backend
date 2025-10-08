@@ -1,4 +1,4 @@
-# Tranquil Care Backend
+# Vyapara Backend
 
 ## To get up and running:
 
