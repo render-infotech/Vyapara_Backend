@@ -82,8 +82,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Install dependencies
         run: npm install  --force
-      # - name: Set AWS profile
-      #  run: aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID --profile developer && aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY --profile developer && aws configure set region "ca-central-1" --profile developer
+      - name: Set AWS profile
+        run: aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID --profile developer && aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY --profile developer && aws configure set region "ca-central-1" --profile developer
       - name: serverless deploy
         uses: serverless/github-action@v3.2
         with:
