@@ -1,9 +1,9 @@
-name: Deploying backend
+name: Deploying backend from main
 
 on:
   push:
     branches:
-      - backend
+      - main
 env:
   ENVIRONMENT: backend
   STAGE: dev
