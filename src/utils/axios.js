@@ -29,30 +29,14 @@ const getRequest = async (url, params = {}, headers = {}) => {
     logger.info(`getRequest Response Data: ${JSON.stringify(response.data)}`);
     return response.data;
   } catch (error) {
-    logger.error(
-      `getRequest Error: ${
-        error.response ? error.response.data : error.message
-      }`
-    );
-    logger.error(
-      `getRequest Error: ${
-        error.response ? JSON.stringify(error.response.data) : error.message
-      }`
-    );
+    logger.error(`getRequest Error: ${error.response ? error.response.data : error.message}`);
+    logger.error(`getRequest Error: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
   }
   return null;
 };
 
-const postRequest = async (
-  url,
-  data = {},
-  headers = {},
-  req = {},
-  useReqAuth = false
-) => {
-  const requestHeader = useReqAuth
-    ? requestHeaders(req, 'Authorization')
-    : getInternalAuthorisationHeaders();
+const postRequest = async (url, data = {}, headers = {}, req = {}, useReqAuth = false) => {
+  const requestHeader = useReqAuth ? requestHeaders(req, 'Authorization') : getInternalAuthorisationHeaders();
   // const requestHeader = useReqAuth ? requestHeaders(req, 'Authorization') : {};
 
   try {
@@ -66,11 +50,7 @@ const postRequest = async (
     logger.info(`postRequest Response Data: ${JSON.stringify(response.data)}`);
     return response.data;
   } catch (error) {
-    logger.error(
-      `postRequest Error: ${
-        error.response ? JSON.stringify(error.response.data) : error.message
-      }`
-    );
+    logger.error(`postRequest Error: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
   }
   return null;
 };

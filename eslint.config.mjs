@@ -3,6 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import eslintPluginImport from 'eslint-plugin-import';
 import eslintPluginPrettier from 'eslint-plugin-prettier';
+import eslintCommentsPlugin from 'eslint-plugin-eslint-comments';
 import globals from 'globals';
 
 export default [
@@ -22,6 +23,7 @@ export default [
       '@typescript-eslint': tsPlugin,
       import: eslintPluginImport,
       prettier: eslintPluginPrettier,
+      'eslint-comments': eslintCommentsPlugin, // ✅ use imported plugin
     },
     rules: {
       // Prettier + style
@@ -46,7 +48,7 @@ export default [
       'import/no-named-as-default': 'off',
 
       // Handle unused eslint-disable warnings
-      'eslint-comments/no-unused-disable': 'warn', // warns if eslint-disable is unused
+      'eslint-comments/no-unused-disable': 'off',
     },
     settings: {
       'import/resolver': {
