@@ -9,7 +9,7 @@ import globals from 'globals';
 export default [
   {
     files: ['**/*.js', '**/*.ts'],
-    ignores: ['node_modules', 'dist', 'build', '.webpack'],
+    ignores: ['node_modules/**', 'dist/**', 'build/**', '.webpack/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

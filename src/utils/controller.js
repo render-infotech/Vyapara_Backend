@@ -62,9 +62,7 @@ const createFilterObject = (filter) => {
   if (fieldName.includes('$btw')) {
     const betweenValues = fieldValue.split(',');
     if (betweenValues.length !== 2) {
-      throw new SqlError(
-        'There can only be 2 values for between. i.e. dd-mm-yyyy,dd-mm-yyyy'
-      );
+      throw new SqlError('There can only be 2 values for between. i.e. dd-mm-yyyy,dd-mm-yyyy');
     }
     return {
       name: fieldName.replace('$btw', ''),
