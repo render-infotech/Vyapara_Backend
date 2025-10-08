@@ -1,0 +1,31 @@
+users:
+  handler: src/routes/users/v1/index.users
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/users
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
+    - http:
+        path: /v1/users/{proxy+}
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true

@@ -1,0 +1,83 @@
+service: vyapara-api-nodejs
+app: vyapara-backend-app
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${env:STAGE}
+  region: ap-south-1
+  environment: ${self:custom.environment}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - 'secretsmanager:*'
+        - 'sns:*'
+        - 's3:*'
+        - 'ses:*'
+      Resource:
+        - '*'
+  apiGateway:
+    binaryMediaTypes:
+      - '*/*'
+
+package:
+  individually: true
+  exclude:
+    - .git/**
+    - node_modules/**
+    - db/**
+    - lib/**
+    - .webpack/**
+    - docs/**
+    - .idea/**
+  excludeDevDependencies: true
+
+functions:
+  - ${file(./src/routes/users/v1/users.yml)}
+
+plugins:
+  - serverless-offline
+  - serverless-webpack
+  - serverless-prune-plugin
+  - serverless-dotenv-plugin
+
+useDotenv: true
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  environment:
+    ENVIRONMENT: ${env:ENVIRONMENT}
+    STAGE: ${env:STAGE}
+    DBHOST: ${env:DBHOST}
+    DBUSER: ${env:DBUSER}
+    DBDATABASE: ${env:DBDATABASE}
+    DBPASSWORD: ${env:DBPASSWORD}
+    DBPORT: ${env:DBPORT}
+    JWT_PRIVKEY: ${env:JWT_PRIVKEY}
+    DEV_OTP: ${env:DEV_OTP}
+    S3_BUCKET: ${env:S3_BUCKET}
+    S3_ACCESS_KEY: ${env:S3_ACCESS_KEY}
+    S3_SECRET_KEY: ${env:S3_SECRET_KEY}
+    S3_REGION: ${env:S3_REGION}
+    SES_REGION: ${env:SES_REGION}
+    # EMAIL_ENABLED: ${env:EMAIL_ENABLED}
+    API_ENDPOINT: ${env:API_ENDPOINT}
+    # FRONTEND_URL: ${env:FRONTEND_URL}
+    # INTERNAL_KEY: ${env:INTERNAL_KEY}
+    # EMAIL_HOST: ${env:EMAIL_HOST}
+    # EMAIL_PORT: ${env:EMAIL_PORT}
+    # EMAIL_SSL: ${env:EMAIL_SSL}
+    # EMAIL_USER: ${env:EMAIL_USER}
+    # EMAIL_PASSWORD: ${env:EMAIL_PASSWORD}
+    # TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
+    # TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
+    # TWILIO_PHONE_NUMBER: ${env:TWILIO_PHONE_NUMBER}
+  serverless-offline:
+    noPrependStageInUrl: true
+    # For the custom port which is 3001 remove this for default port "3000"
+    httpPort: 3001
+  prune:
+    automatic: true
+    number: 5

@@ -1,0 +1,46 @@
+/**
+ * HTTP status codes used in the application.
+ *
+ * @constant
+ * @type {object}
+ * @property {number} OK - Status code for a successful HTTP request.
+ * @property {number} CREATED - Status code for a new resource that has been successfully created.
+ * @property {number} NO_CONTENT - Status code for a successful request where there's no representation to return (i.e. the response is empty).
+ * @property {number} BAD_REQUEST - Status code for an unsuccessful request due to client error.
+ * @property {number} UNAUTHORIZED - Status code when authentication is required and has failed or has not yet been provided.
+ * @property {number} FORBIDDEN - Status code when the client does not have the rights to the content.
+ * @property {number} NOT_FOUND - Status code when the requested resource could not be found.
+ * @property {number} INTERNAL_SERVER_ERROR - Status code for an unexpected server error.
+ */
+
+export const statusCodes = {
+  OK: 200,
+  CREATED: 201,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL_SERVER_ERROR: 500,
+};
+
+/**
+ * Configuration for the database connection.
+ *
+ * @constant
+ * @type {object}
+ * @property {string} database - The name of the database.
+ * @property {string} username - The username for the database connection.
+ * @property {string} password - The password for the database connection.
+ * @property {string} host - The host of the database.
+ * @property {string} dialect - The dialect/engine of the database.
+ * @property {string} port - The port of the database.
+ */
+export const DBConfig = {
+  database: process.env.DBDATABASE,
+  username: process.env.DBUSER,
+  password: process.env.DBPASSWORD,
+  host: process.env.DBHOST,
+  dialect: process.env.DBDIALECT,
+  port: process.env.DBPORT,
+};

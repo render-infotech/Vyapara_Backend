@@ -1,0 +1,16 @@
+{
+  "include": ["src/**/*", "scripts"],
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "allowSyntheticDefaultImports": true,
+    "lib": ["dom", "es2015", "es2016", "esnext.asynciterable"],
+    "module": "es2015",
+    "moduleResolution": "node",
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "target": "es6",
+    "experimentalDecorators": true
+  }
+}

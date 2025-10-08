@@ -1,0 +1,25 @@
+{
+  "tags": {
+    "allowUnknownTags": ["category", "subcategory", "optional"]
+  },
+  "source": {
+    "include": ["./src"],
+    "includePattern": "\\.(js|ts)$",
+    "excludePattern": "(node_modules/|docs)"
+  },
+  "plugins": ["better-docs/category", "plugins/markdown", "better-docs/typescript"],
+  "opts": {
+    "destination": "docs/",
+    "recurse": true,
+    "readme": "README.md",
+    "template": "node_modules/better-docs"
+  },
+  "templates": {
+    "search": true,
+    "better-docs": {
+      "name": "Vyapara API Documentation",
+      "title": "Vyapara API Documentation",
+      "hideGenerator": true
+    }
+  }
+}
