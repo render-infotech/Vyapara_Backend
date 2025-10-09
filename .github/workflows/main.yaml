@@ -19,8 +19,8 @@ env:
   DEV_OTP: ${{ secrets.DEV_OTP }}
   S3_BUCKET: ${{ secrets.S3_BUCKET }}
   S3_REGION: ${{ secrets.S3_REGION }}
-  S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-  S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+  S3_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_KEY }}
+  S3_SECRET_KEY: ${{ secrets.AWS_DEPLOY_SECRET }}
   JWT_PRIVKEY: ${{ secrets.JWT_PRIVKEY }}
   # EMAIL_ENABLED: true
   # JWT_PUBKEY: ${{ secrets.JWT_PUBKEY }}
