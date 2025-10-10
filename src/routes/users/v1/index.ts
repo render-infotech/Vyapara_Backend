@@ -3,19 +3,18 @@ import app from '../../../utils/express.js';
 import { sequelize } from '../../../utils/database.js';
 import UserController from '../../../controller/UserController';
 import UsersModel from '../../../models/users';
+import CustomerDetailsModel from '../../../models/customerDetails';
 import ControllerRoutes from './users';
 
 const Users = UsersModel(sequelize);
+const CustomerDetails = CustomerDetailsModel(sequelize);
 
-// Users.associate({
-//   Franchisor: FranchiseeCompany,
-//   Franchisee: FranchiseeCompany,
-//   CaregiverDetails,
-//   Institutions,
-//   OfficeUsers,
-// });
+Users.associate({
+  CustomerDetails,
+});
+CustomerDetails.associate({ Users });
 
-const UsersController = new UserController(Users);
+const UsersController = new UserController(Users, CustomerDetails);
 
 const UsersControllerRoutes = ControllerRoutes(UsersController);
 

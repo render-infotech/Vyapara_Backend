@@ -1,4 +1,5 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
+import CustomerDetails from './customerDetails';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -14,6 +15,7 @@ interface UserAttributes {
   phone?: string;
   role_id: number; // 1 = Admin, 2 = Vendor, 3 = Rider, 10 = End User (default)
   status: number;
+  two_factor_enabled: boolean;
   is_deactivated: number;
   user_verified?: number;
   password_change_date: Date;
@@ -50,6 +52,8 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
 
   public status!: number;
 
+  public two_factor_enabled!: boolean;
+
   public is_deactivated!: number;
 
   public user_verified!: number;
@@ -60,8 +64,26 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
 
   public updated_at!: Date;
 
-  // // Define any additional static methods for the model
-  // public static associate(models: any) {}
+  /**
+   * The type for the association between models
+   */
+  public static associations: {
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
+  };
+
+  /**
+   * A method to associate with other models
+   * @static
+   * @param {any} models - The models to associate with
+   */
+  public static associate(models: any) {
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('CustomerDetails')) {
+      this.hasOne(models.CustomerDetails, { foreignKey: 'customer_id', as: 'customerDetails' });
+    }
+  }
 }
 
 // Initialize the User model
@@ -134,6 +156,12 @@ const UserModel = (sequelize: Sequelize): typeof User => {
         allowNull: false,
         defaultValue: 1,
         comment: 'Is the user Active or Not',
+      },
+      two_factor_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'Whether the user has enabled Two-Factor Authentication',
       },
       is_deactivated: {
         type: DataTypes.TINYINT,

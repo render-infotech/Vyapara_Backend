@@ -2,151 +2,33 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import UsersModel from '../models/users';
-import { statusCodes } from '../utils/constants';
+import { predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils.js';
 import SqlError from '../errors/sqlError.js';
+import Users from '../models/users';
+import CustomerDetails from '../models/customerDetails';
 
 export default class UsersController {
   // @ts-ignore
-  private usersModel: UsersModel;
+  private users: Users;
+
+  // @ts-ignore
+  private customerDetails: CustomerDetails;
 
   constructor(
     // @ts-ignore
-    usersModel: UsersModel,
+    users: Users,
+    // @ts-ignore
+    customerDetails: CustomerDetails,
   ) {
-    this.usersModel = usersModel;
-  }
-
-  async getUsers(req: Request, res: Response) {
-    const requestData = req.query;
-    let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
-
-    try {
-      const where: any = { status: 1 };
-
-      if (requestData.name) {
-        where.first_name = { [Op.like]: `%${requestData.name}%` };
-      }
-      if (requestData.email) {
-        where.email = { [Op.like]: `%${requestData.email}%` };
-      }
-
-      const users = await this.usersModel.findAll({
-        where,
-        order: [['first_name', 'ASC']],
-      });
-
-      logger.info('User Data retrieved successfully.');
-      responseData = prepareJSONResponse(users, 'Success', statusCodes.OK);
-    } catch (error) {
-      logger.error('Error retrieving users.', error);
-      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
-    }
-
-    return res.status(responseData.status ?? 500).json(responseData);
-  }
-
-  async saveUser(req: Request, res: Response) {
-    const requestBody = req.body;
-    const mandatoryFields = ['name', 'email', 'role_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
-    let responseData: any;
-
-    if (missingFields.length > 0) {
-      responseData = prepareJSONResponse(
-        {},
-        `Missing required fields: ${missingFields.join(', ')}`,
-        statusCodes.BAD_REQUEST,
-      );
-      return res.status(responseData.status).json(responseData);
-    }
-
-    try {
-      const updateFields: Record<string, any> = {};
-      mandatoryFields.forEach((field) => {
-        if (requestBody[field]) updateFields[field] = requestBody[field];
-      });
-
-      if (requestBody.id) {
-        const existingUser = await this.usersModel.findOne({
-          where: { id: requestBody.id, status: 1 },
-        });
-
-        if (!existingUser) {
-          responseData = prepareJSONResponse({}, 'No records found to update', statusCodes.BAD_REQUEST);
-        } else {
-          await existingUser.update(updateFields);
-          responseData = prepareJSONResponse(existingUser, 'Updated', statusCodes.OK);
-        }
-      } else {
-        const existingUserEmail = await this.usersModel.findOne({
-          where: { email: requestBody.email },
-        });
-
-        if (existingUserEmail) {
-          await existingUserEmail.update(updateFields);
-          responseData = prepareJSONResponse(existingUserEmail, 'User already exists, updated instead', statusCodes.OK);
-        } else {
-          const newUser = await this.usersModel.create(updateFields);
-          responseData = prepareJSONResponse(newUser, 'Created', statusCodes.CREATED);
-        }
-      }
-    } catch (error) {
-      logger.error('Error saving user:', error);
-      responseData = prepareJSONResponse(
-        { error: 'Internal Server Error' },
-        'Error',
-        statusCodes.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    logger.info(`Save User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
-    return res.status(responseData.status ?? 500).json(responseData);
-  }
-
-  async deleteUser(req: Request, res: Response) {
-    const requestBody = req.body;
-    const missingFields = ['id'].filter((field) => !requestBody[field]);
-    let responseData: any;
-
-    if (missingFields.length > 0) {
-      responseData = prepareJSONResponse(
-        {},
-        `Missing required fields: ${missingFields.join(', ')}`,
-        statusCodes.BAD_REQUEST,
-      );
-      return res.status(responseData.status).json(responseData);
-    }
-
-    try {
-      const existingUser = await this.usersModel.findOne({
-        where: { id: requestBody.id, status: 1 },
-      });
-
-      if (!existingUser) {
-        responseData = prepareJSONResponse({}, 'No records found to delete', statusCodes.BAD_REQUEST);
-      } else {
-        await existingUser.update({ status: 0 });
-        responseData = prepareJSONResponse({}, 'Deleted', statusCodes.OK);
-      }
-    } catch (error) {
-      logger.error('Error deleting user:', error);
-      responseData = prepareJSONResponse(
-        { error: 'Internal Server Error' },
-        'Error',
-        statusCodes.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    logger.info(`Delete User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
-    return res.status(responseData.status ?? 500).json(responseData);
+    this.users = users;
+    this.customerDetails = customerDetails;
   }
 
   async emailExists(email) {
     try {
-      const user = await this.usersModel.findOne({
+      const user = await this.users.findOne({
         attributes: ['id', 'email'],
         where: {
           email,
@@ -162,7 +44,7 @@ export default class UsersController {
 
   async createUser(data) {
     try {
-      const user = await this.usersModel.create(data);
+      const user = await this.users.create(data);
       return user;
     } catch (error) {
       logger.error('Error Exception in createUser.', error, data);
@@ -238,7 +120,7 @@ export default class UsersController {
       const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const user = await this.usersModel.findOne({
+        const user = await this.users.findOne({
           attributes: ['id', 'first_name', 'last_name', 'email', 'password', 'role_id', 'status', 'is_deactivated'],
           where: {
             email: requestData.email,
@@ -322,7 +204,7 @@ export default class UsersController {
       const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const user = await this.usersModel.findOne({
+        const user = await this.users.findOne({
           attributes: ['id', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
           where: {
             email: requestData.email,
@@ -379,13 +261,13 @@ export default class UsersController {
           statusCodes.BAD_REQUEST,
         );
         if (requestData.new_password === requestData.confirm_password) {
-          const user = await this.usersModel.findOne({
+          const user = await this.users.findOne({
             attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
             where: {
               id: userId,
             },
           });
-          responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+          responseData = prepareJSONResponse({ dd: userId }, 'Invalid email.', statusCodes.BAD_REQUEST);
           if (user) {
             if (!user.is_deactivated) {
               if (!user.status) {
@@ -415,5 +297,156 @@ export default class UsersController {
     }
     logger.info(`changePassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getUsers(req: Request, res: Response) {
+    const requestData = req.query;
+    let responseData: typeof prepareJSONResponse = {};
+    try {
+      const where: any = { status: 1, role_id: predefinedRoles?.User?.id };
+
+      if (requestData.id) {
+        where.id = requestData.id;
+      }
+      if (requestData.user_verified) {
+        where.user_verified = requestData.user_verified;
+      }
+      if (requestData.is_deactivated) {
+        where.is_deactivated = requestData.is_deactivated;
+      }
+      if (requestData.name) {
+        where.first_name = { [Op.like]: `%${requestData.name}%` };
+      }
+      if (requestData.email) {
+        where.email = { [Op.like]: `%${requestData.email}%` };
+      }
+
+      const users = await this.users.findAll({
+        where,
+        include: [
+          {
+            // CustomerDetails;
+            model: this.customerDetails,
+            as: 'customerDetails',
+            // attributes: ['id', 'customer_id', 'nominee_name'],
+          },
+        ],
+        order: [['first_name', 'ASC']],
+      });
+
+      if (users.length === 0 && requestData.id) {
+        responseData = prepareJSONResponse([], 'No user found.', statusCodes.NOT_FOUND);
+      } else {
+        responseData = prepareJSONResponse(users, 'Success', statusCodes.OK);
+      }
+      logger.info(`getUsers - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    } catch (error) {
+      logger.error('Error retrieving User data in getUsers.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async reactivateUser(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['id'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const recordExists = await this.users.findOne({
+          where: { id: requestBody.id, role_id: predefinedRoles.User.id, status: 1 },
+        });
+        responseData = prepareJSONResponse({}, 'User does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (!recordExists.is_deactivated) {
+            responseData = prepareJSONResponse({}, 'User already activated.', statusCodes.BAD_REQUEST);
+          } else {
+            recordExists.is_deactivated = 0;
+            await recordExists.save();
+            responseData = prepareJSONResponse({}, 'User reactivation successful.', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('reactivateUser - Error reactivating User.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `reactivateUser - Reactivate User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async deactivateUser(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['id'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const recordExists = await this.users.findOne({ where: { id: requestBody.id } });
+        responseData = prepareJSONResponse({}, 'User does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (recordExists.is_deactivated) {
+            responseData = prepareJSONResponse({}, 'User already deactivated.', statusCodes.BAD_REQUEST);
+          } else {
+            recordExists.is_deactivated = 1;
+            await recordExists.save();
+            responseData = prepareJSONResponse({}, 'User deactivation successful.', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('deactivateUser - Error deactivating user.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `deactivateUser - Deactivate User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async deleteUser(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['id'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const recordExists = await this.users.findOne({
+          where: { id: requestBody.id, role_id: predefinedRoles.User.id, status: 1, is_deactivated: 0 },
+        });
+        responseData = prepareJSONResponse({}, 'User does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          recordExists.is_deactivated = 1;
+          recordExists.status = 0;
+          await recordExists.save();
+          responseData = prepareJSONResponse({}, 'User deletion successful.', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('deleteUser - Error deleting user:', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(`Delete User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status ?? 500).json(responseData);
   }
 }

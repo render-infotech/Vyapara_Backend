@@ -44,3 +44,26 @@ export const DBConfig = {
   dialect: process.env.DBDIALECT,
   port: process.env.DBPORT,
 };
+
+export const predefinedRoles = {
+  Admin: {
+    id: 1,
+    name: 'Admin',
+    can_modify: 0,
+  },
+  Vendor: {
+    id: 2,
+    name: 'Vendor',
+    can_modify: 1,
+  },
+  Rider: {
+    id: 3,
+    name: 'Rider',
+    can_modify: 1,
+  },
+  User: {
+    id: 10,
+    name: 'User',
+    can_modify: 1,
+  },
+};
