@@ -13,6 +13,8 @@ interface UserAttributes {
   phone_country_code?: string;
   phone_code?: string;
   phone?: string;
+  dob?: string;
+  gender?: number; //  1 - Male (default), 2 - Female, 3 - Others
   role_id: number; // 1 = Admin, 2 = Vendor, 3 = Rider, 10 = End User (default)
   status: number;
   two_factor_enabled: boolean;
@@ -47,6 +49,10 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public phone_code?: string;
 
   public phone?: string;
+
+  public dob?: string;
+
+  public gender?: number;
 
   public role_id!: number;
 
@@ -144,6 +150,17 @@ const UserModel = (sequelize: Sequelize): typeof User => {
         allowNull: true,
         comment: 'The phone number of the user',
         defaultValue: null,
+      },
+      dob: {
+        type: DataTypes.STRING(30),
+        allowNull: true,
+        comment: 'Date of birth of the user',
+      },
+      gender: {
+        type: DataTypes.TINYINT,
+        allowNull: true,
+        defaultValue: 1,
+        comment: 'Gender of the user (1 = Male, 2 = Female, 3 = Others)',
       },
       role_id: {
         type: DataTypes.BIGINT,

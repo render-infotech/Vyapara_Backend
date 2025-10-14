@@ -9,8 +9,6 @@ interface CustomerDetailsAttributes {
   nominee_phone_country_code?: string;
   nominee_phone_code?: string;
   nominee_phone?: string;
-  dob?: string;
-  gender?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -34,10 +32,6 @@ class CustomerDetails
   public nominee_phone_code?: string;
 
   public nominee_phone?: string;
-
-  public dob?: string;
-
-  public gender?: number;
 
   public created_at!: Date;
 
@@ -104,16 +98,6 @@ const CustomerDetailsModel = (sequelize: Sequelize): typeof CustomerDetails => {
         allowNull: true,
         defaultValue: null,
         comment: 'The phone number of the nominee',
-      },
-      dob: {
-        type: DataTypes.STRING(30),
-        allowNull: true,
-        comment: 'Date of birth of the customer',
-      },
-      gender: {
-        type: DataTypes.TINYINT,
-        allowNull: false,
-        comment: 'Gender of the caregiver, 1 - Male, 2 - Female, 3 - Others',
       },
       created_at: {
         type: DataTypes.DATE,

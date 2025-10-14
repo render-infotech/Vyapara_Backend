@@ -2,9 +2,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { statusCodes } from '../utils/constants';
-import logger from '../utils/logger.js';
+import logger from '../utils/logger';
 import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils.js';
-import SqlError from '../errors/sqlError.js';
+import SqlError from '../errors/sqlError';
 import Users from '../models/users';
 import CustomerDetails from '../models/customerDetails';
 
@@ -51,16 +51,6 @@ export default class UsersController {
     }
   }
 
-  async createCustomerDetails(data: any) {
-    try {
-      const customerDetails = await this.customerDetails.create(data);
-      return customerDetails;
-    } catch (error) {
-      logger.error('Error Exception in createCustomerDetails.', error, data);
-      throw new SqlError(error);
-    }
-  }
-
   // eslint-disable-next-line class-methods-use-this
   async registerUser(req: Request, res: Response) {
     const requestData = req.body;
@@ -93,14 +83,6 @@ export default class UsersController {
               last_name: requestData.last_name,
               email: requestData.email,
               password: requestData.password,
-            });
-
-            await this.createCustomerDetails({
-              customer_id: newUser.toJSON().id,
-              nominee_name: requestData.nominee_name || null,
-              nominee_phone_country_code: requestData.nominee_phone_country_code || null,
-              nominee_phone_code: requestData.nominee_phone_code || null,
-              nominee_phone: requestData.nominee_phone || null,
               dob: requestData.dob || null,
               gender: requestData.gender || 1,
             });
@@ -117,7 +99,7 @@ export default class UsersController {
             };
             const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
             const dataForUser = { user: data, token, expiresIn: 365 };
-            responseData = prepareJSONResponse(dataForUser, 'Registration successful', statusCodes.OK);
+            responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
             logger.info(
               `registerUser User Registered successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
             );
@@ -198,7 +180,7 @@ export default class UsersController {
               };
               const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
               const dataForUser = { user: data, token, expiresIn: 365 };
-              responseData = prepareJSONResponse(dataForUser, 'Login successful', statusCodes.OK);
+              responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
               logger.info(
                 `loginUser User Logged in successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
               );
@@ -287,7 +269,7 @@ export default class UsersController {
               id: userId,
             },
           });
-          responseData = prepareJSONResponse({ dd: userId }, 'Invalid email.', statusCodes.BAD_REQUEST);
+          responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
           if (user) {
             if (!user.is_deactivated) {
               if (!user.status) {
@@ -316,6 +298,88 @@ export default class UsersController {
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
     logger.info(`changePassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async enableTwoFactor(req: Request, res: Response) {
+    // @ts-ignore
+    const { userId } = req.user;
+    const requestData = req.body;
+    let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    try {
+      if (userId) {
+        const recordExists = await this.users.findOne({
+          attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
+          where: {
+            id: userId,
+          },
+        });
+        responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (!recordExists.is_deactivated) {
+            if (!recordExists.status) {
+              responseData = prepareJSONResponse(
+                {},
+                'Kindly contact admin for enabling the system access',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              recordExists.two_factor_enabled = 1;
+              await recordExists.save();
+              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            }
+          }
+        }
+      } else if (!userId) {
+        responseData = prepareJSONResponse({}, 'Kindly login to perform the action.', statusCodes.BAD_REQUEST);
+      }
+    } catch (error) {
+      logger.error('enableTwoFactor - Error Exception in User enableTwoFactor', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+    logger.info(`enableTwoFactor User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async disableTwoFactor(req: Request, res: Response) {
+    // @ts-ignore
+    const { userId } = req.user;
+    const requestData = req.body;
+    let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    try {
+      if (userId) {
+        const recordExists = await this.users.findOne({
+          attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
+          where: {
+            id: userId,
+          },
+        });
+        responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (!recordExists.is_deactivated) {
+            if (!recordExists.status) {
+              responseData = prepareJSONResponse(
+                {},
+                'Kindly contact admin for enabling the system access',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              recordExists.two_factor_enabled = 0;
+              await recordExists.save();
+              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            }
+          }
+        }
+      } else if (!userId) {
+        responseData = prepareJSONResponse({}, 'Kindly login to perform the action.', statusCodes.BAD_REQUEST);
+      }
+    } catch (error) {
+      logger.error('disableTwoFactor - Error Exception in User disableTwoFactor', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+    logger.info(`disableTwoFactor User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }
