@@ -50,6 +50,12 @@ export default class CustomersController {
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
         } else {
+          const existingDetails = await this.customerDetails.findOne({
+            where: { customer_id: requestBody.id },
+          });
+          if (existingDetails) {
+            responseData = prepareJSONResponse({}, 'Customer details already exist', statusCodes.BAD_REQUEST);
+          }
           await this.createCustomer({
             customer_id: requestBody.id,
             nominee_name: requestBody.nominee_name || null,
@@ -152,7 +158,9 @@ export default class CustomersController {
               is_deactivated: user?.is_deactivated,
               customerDetails: user?.customerDetails,
             };
-            allCustomersData.push(customerData);
+            if (user?.customerDetails) {
+              allCustomersData.push(customerData);
+            }
           }),
         );
 

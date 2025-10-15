@@ -5,6 +5,7 @@ import Users from './users';
 interface CustomerDetailsAttributes {
   id: number;
   customer_id: number;
+  customer_code: string;
   nominee_name?: string;
   nominee_phone_country_code?: string;
   nominee_phone_code?: string;
@@ -14,7 +15,7 @@ interface CustomerDetailsAttributes {
 }
 
 // Optional attributes for creation
-interface CustomerDetailsCreationAttributes extends Optional<CustomerDetailsAttributes, 'id'> {}
+interface CustomerDetailsCreationAttributes extends Optional<CustomerDetailsAttributes, 'id' | 'customer_code'> {}
 
 // Define the CustomerDetails model extending Sequelize Model and implementing CustomerDetailsAttributes
 class CustomerDetails
@@ -24,6 +25,8 @@ class CustomerDetails
   public id!: number;
 
   public customer_id!: number;
+
+  public customer_code!: string;
 
   public nominee_name?: string;
 
@@ -76,6 +79,12 @@ const CustomerDetailsModel = (sequelize: Sequelize): typeof CustomerDetails => {
         allowNull: false,
         comment: 'Reference to the user this record belongs to',
       },
+      customer_code: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        unique: true,
+        comment: 'Unique formatted customer code (e.g., CUS100001)',
+      },
       nominee_name: {
         type: DataTypes.STRING(100),
         allowNull: true,
@@ -117,7 +126,22 @@ const CustomerDetailsModel = (sequelize: Sequelize): typeof CustomerDetails => {
       freezeTableName: true,
       tableName: 'customer_details',
       timestamps: false,
-      comment: 'Stores additional personal and nominee details of customers',
+      modelName: 'customerDetails',
+      hooks: {
+        beforeValidate: async (record: any) => {
+          const lastRecord = await record.constructor.findOne({
+            order: [['id', 'DESC']],
+          });
+
+          let nextNumber = 100001;
+          if (lastRecord && lastRecord?.customer_code) {
+            const lastNum = parseInt(lastRecord.customer_code.replace('CUS', ''), 10);
+            if (!isNaN(lastNum)) nextNumber = lastNum + 1;
+          }
+
+          record.customer_code = `CUS${nextNumber}`;
+        },
+      },
     },
   );
 

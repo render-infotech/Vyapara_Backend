@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 CREATE TABLE IF NOT EXISTS `customer_details` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the customer details record',
   `customer_id` BIGINT NOT NULL COMMENT 'Reference to the user this record belongs to',
+    `customer_code` VARCHAR(20) NOT NULL UNIQUE COMMENT 'Unique formatted customer code (e.g., CUS100001)',
   `nominee_name` VARCHAR(100) DEFAULT NULL COMMENT 'Full name of the nominee',
   `nominee_phone_country_code` VARCHAR(10) DEFAULT NULL COMMENT 'The phone country code of the nominee (IN, US, etc)',
   `nominee_phone_code` VARCHAR(10) DEFAULT NULL COMMENT 'The phone code of the nominee’s country',
@@ -41,6 +42,5 @@ CREATE TABLE IF NOT EXISTS `customer_details` (
   CONSTRAINT `fk_customer_details_user`
     FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
-    ON UPDATE CASCADE
 ) ENGINE=InnoDB
 COMMENT='Stores additional personal and nominee details of customers';
