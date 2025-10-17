@@ -1,5 +1,6 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import CustomerDetails from './customerDetails';
+import VendorDetails from './vendorDetails';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -77,6 +78,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    vendorDetails: Association<VendorDetails, InstanceType<typeof VendorDetails>>;
   };
 
   /**
@@ -88,6 +92,10 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('CustomerDetails')) {
       this.hasOne(models.CustomerDetails, { foreignKey: 'customer_id', as: 'customerDetails' });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('VendorDetails')) {
+      this.hasOne(models.VendorDetails, { foreignKey: 'vendor_id', as: 'vendorDetails' });
     }
   }
 }

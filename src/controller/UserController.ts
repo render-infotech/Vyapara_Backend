@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { statusCodes } from '../utils/constants';
 import logger from '../utils/logger';
-import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils.js';
+import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils';
 import SqlError from '../errors/sqlError';
 import Users from '../models/users';
 import CustomerDetails from '../models/customerDetails';

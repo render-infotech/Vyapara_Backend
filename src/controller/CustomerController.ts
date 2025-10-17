@@ -81,89 +81,96 @@ export default class CustomersController {
     const requestData = req.query;
     let responseData: typeof prepareJSONResponse = {};
     try {
-      const where: any = { status: 1, role_id: predefinedRoles?.User?.id };
-
-      if (requestData.id) {
-        where.id = requestData.id;
+      const userWhere: any = {
+        status: 1,
+        role_id: predefinedRoles?.User?.id,
+      };
+      if (requestData.customer_id) {
+        userWhere.id = requestData.customer_id;
       }
       if (requestData.user_verified) {
-        where.user_verified = requestData.user_verified;
+        userWhere.user_verified = requestData.user_verified;
       }
       if (requestData.is_deactivated) {
-        where.is_deactivated = requestData.is_deactivated;
+        userWhere.is_deactivated = requestData.is_deactivated;
       }
       if (requestData.name) {
-        where.first_name = { [Op.like]: `%${requestData.name}%` };
+        userWhere.first_name = { [Op.like]: `%${requestData.name}%` };
       }
       if (requestData.email) {
-        where.email = { [Op.like]: `%${requestData.email}%` };
+        userWhere.email = { [Op.like]: `%${requestData.email}%` };
       }
+      const customerWhere: any = {};
 
-      const users = await this.users.findAll({
-        where,
+      const customerRecords = await this.customerDetails.findAll({
+        where: customerWhere,
         include: [
           {
-            model: this.customerDetails,
-            as: 'customerDetails',
-            attributes: {
-              exclude: ['created_at', 'updated_at'],
-            },
+            model: this.users,
+            as: 'user',
+            where: userWhere,
+            required: true,
+            attributes: [
+              'id',
+              'first_name',
+              'middle_name',
+              'last_name',
+              'profile_pic',
+              'email',
+              'phone_country_code',
+              'phone_code',
+              'phone',
+              'gender',
+              'dob',
+              'status',
+              'two_factor_enabled',
+              'user_verified',
+              'is_deactivated',
+            ],
           },
         ],
-        attributes: [
-          'id',
-          'first_name',
-          'middle_name',
-          'last_name',
-          'profile_pic',
-          'email',
-          'phone_country_code',
-          'phone_code',
-          'phone',
-          'gender',
-          'dob',
-          'role_id',
-          'status',
-          'two_factor_enabled',
-          'user_verified',
-          'is_deactivated',
-        ],
-        order: [['first_name', 'ASC']],
+        attributes: { exclude: ['created_at', 'updated_at'] },
+        order: [[{ model: this.users, as: 'user' }, 'first_name', 'ASC']],
       });
 
-      const allCustomersData = [];
+      logger.info(`getCustomer - fetched customers ${JSON.stringify(customerRecords)}`);
 
-      if (users.length === 0 && requestData.id) {
+      if (customerRecords.length === 0) {
         responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
       } else {
-        await Promise.all(
-          users.map(async (user: any) => {
-            const customerData = {
-              id: user?.id,
-              customer_id: user?.customerDetails?.customer_id,
-              first_name: user?.first_name || '',
-              middle_name: user?.middle_name || '',
-              last_name: user?.last_name || '',
-              profile_pic: user?.profile_pic || '',
-              email: user?.email || '',
-              phone_country_code: user?.phone_country_code || '',
-              phone_code: user?.phone_code || '',
-              phone: user?.phone || '',
-              gender: user?.gender,
-              dob: user?.dob,
-              role_id: user?.role_id || 10,
-              status: user?.status,
-              two_factor_enabled: user?.two_factor_enabled,
-              user_verified: user?.user_verified,
-              is_deactivated: user?.is_deactivated,
-              customerDetails: user?.customerDetails,
+        const mappedCustomerData = await Promise.all(
+          customerRecords.map(async (customer: any) => {
+            return {
+              id: customer?.id,
+              customer_id: customer?.customer_id,
+              customer_code: customer?.customer_code,
+              first_name: customer?.user?.first_name || '',
+              middle_name: customer?.user?.middle_name || '',
+              last_name: customer?.user?.last_name || '',
+              profile_pic: customer?.user?.profile_pic || '',
+              email: customer?.user?.email || '',
+              phone_country_code: customer?.user?.phone_country_code || '',
+              phone_code: customer?.user?.phone_code || '',
+              phone: customer?.user?.phone || '',
+              gender: customer?.user?.gender || 1,
+              dob: customer?.user?.dob || '',
+              two_factor_enabled: customer?.user?.two_factor_enabled,
+              user_verified: customer?.user?.user_verified,
+              is_deactivated: customer?.user?.is_deactivated,
+              nominee_name: customer?.nominee_name,
+              nominee_phone_country_code: customer?.nominee_phone_country_code,
+              nominee_phone_code: customer?.nominee_phone_code,
+              nominee_phone: customer?.nominee_phone,
             };
-            if (user?.customerDetails) {
-              allCustomersData.push(customerData);
-            }
           }),
         );
 
+        let allCustomersData: any;
+        if (requestData.customer_id) {
+          allCustomersData = mappedCustomerData[0];
+        } else {
+          allCustomersData = mappedCustomerData;
+        }
         responseData = prepareJSONResponse(allCustomersData, 'Success', statusCodes.OK);
       }
       logger.info(`getCustomer - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);

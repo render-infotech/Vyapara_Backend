@@ -44,3 +44,32 @@ CREATE TABLE IF NOT EXISTS `customer_details` (
     ON DELETE CASCADE
 ) ENGINE=InnoDB
 COMMENT='Stores additional personal and nominee details of customers';
+
+-- Created new table for vendor details - by Shubham
+CREATE TABLE IF NOT EXISTS `vendor_details` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the vendor details record',
+  `vendor_id` BIGINT NOT NULL COMMENT 'Reference to the user this vendor belongs to',
+  `vendor_code` VARCHAR(50) NOT NULL UNIQUE COMMENT 'Unique code of the vendor, auto-generated',
+  `business_name` VARCHAR(150) DEFAULT NULL COMMENT 'Business name of the vendor',
+  `address_line` TEXT DEFAULT NULL COMMENT 'Street address or shop location',
+  `country` VARCHAR(100) NOT NULL COMMENT 'Country name of the vendor',
+  `state` VARCHAR(100) NOT NULL COMMENT 'State name of the vendor',
+  `city` VARCHAR(100) NOT NULL COMMENT 'City name of the vendor',
+  `postal_code` VARCHAR(15) DEFAULT NULL COMMENT 'Postal/ZIP code of the vendor',
+  `gst_number` VARCHAR(50) DEFAULT NULL COMMENT 'GST number if applicable',
+  `is_gst_registered` TINYINT DEFAULT 0 COMMENT '1 if GST registered, else 0',
+  `website` VARCHAR(150) DEFAULT NULL COMMENT 'Official website URL of the vendor',
+  `description` TEXT DEFAULT NULL COMMENT 'Description or about section of the vendor',
+  `materials` JSON DEFAULT NULL COMMENT 'List of materials vendor deals in',
+  `payment_modes` JSON DEFAULT NULL COMMENT 'Accepted payment modes, e.g. ["UPI","Cash","Credit Card"]',
+  `working_hours` JSON DEFAULT NULL COMMENT 'Vendor working hours',
+  `rating` DECIMAL(3,2) DEFAULT 0.0 COMMENT 'Average rating of the vendor',
+  `review_count` INT DEFAULT 0 COMMENT 'Total number of reviews',
+   `is_complete` TINYINT DEFAULT 1 COMMENT 'If the profile steps completed by Admin, so it can be listed for operations',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date and time when record was created',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Date and time when record was last updated',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_vendor_details_user`
+    FOREIGN KEY (`vendor_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Stores detailed information about vendors';

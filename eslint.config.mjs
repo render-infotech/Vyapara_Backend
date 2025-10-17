@@ -44,7 +44,15 @@ export default [
       // Import rules
       'import/extensions': 'off',
       'import/no-import-module-exports': 'off',
-      'import/no-unresolved': ['error', { caseSensitive: true }],
+      'import/no-extraneous-dependencies': [
+        'error',
+        {
+          devDependencies: false,
+          optionalDependencies: false,
+          peerDependencies: false,
+        },
+      ],
+      'import/no-unresolved': ['error', { commonjs: true, caseSensitive: true }],
       'import/no-named-as-default': 'off',
 
       // Handle unused eslint-disable warnings
