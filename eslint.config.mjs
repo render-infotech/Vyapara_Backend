@@ -47,7 +47,7 @@ export default [
       'import/no-extraneous-dependencies': [
         'error',
         {
-          devDependencies: false,
+          devDependencies: ['webpack.config.js', '**/webpack.*.js', '**/*.config.js'],
           optionalDependencies: false,
           peerDependencies: false,
         },

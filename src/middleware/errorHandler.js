@@ -1,6 +1,6 @@
 const { ValidationError } = require('class-validator');
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res) => {
   if (!err) {
     return res.status(500).json({ message: 'Oops, something went wrong' });
   }
