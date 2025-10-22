@@ -45,6 +45,36 @@ CREATE TABLE IF NOT EXISTS `customer_details` (
 ) ENGINE=InnoDB
 COMMENT='Stores additional personal and nominee details of customers';
 
+
+-- Created new table for customer address details - by Shubham
+CREATE TABLE IF NOT EXISTS `customer_address` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the address record',
+  `customer_id` BIGINT NOT NULL COMMENT 'Reference to the customer/user ID',
+  `full_name` VARCHAR(100) NOT NULL COMMENT 'Full name of the receiver',
+  `phone_country_code` VARCHAR(10) DEFAULT NULL COMMENT 'Phone country code (IN, US, etc)',
+  `phone_code` VARCHAR(10) DEFAULT NULL COMMENT 'Dialing code (+91, +1, etc)',
+  `phone` VARCHAR(20) DEFAULT NULL COMMENT 'Contact number for this address',
+  `country` VARCHAR(100) NOT NULL COMMENT 'Country name',
+  `state` VARCHAR(100) NOT NULL COMMENT 'State or province name',
+  `city` VARCHAR(100) NOT NULL COMMENT 'City name',
+  `address_line_1` VARCHAR(255) NOT NULL COMMENT 'Primary address line',
+  `address_line_2` VARCHAR(255) DEFAULT NULL COMMENT 'Secondary address line',
+  `landmark` VARCHAR(255) DEFAULT NULL COMMENT 'Nearby landmark for easier delivery',
+  `pincode` VARCHAR(15) DEFAULT NULL COMMENT 'Postal or ZIP code',
+  `geo_location` VARCHAR(255) DEFAULT NULL COMMENT 'Readable location or map link',
+  `address_type` VARCHAR(50) DEFAULT 'Home' COMMENT 'Address type (Home, Work, Other)',
+  `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Marks this as the default address for the user',
+  `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Active (1) or Inactive (0)',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_customer_address_user`
+    FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB
+COMMENT='Stores all saved addresses of customers (Home, Work, etc)';
+
+
 -- Created new table for vendor details - by Shubham
 CREATE TABLE IF NOT EXISTS `vendor_details` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the vendor details record',
@@ -73,3 +103,4 @@ CREATE TABLE IF NOT EXISTS `vendor_details` (
     FOREIGN KEY (`vendor_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Stores detailed information about vendors';
+

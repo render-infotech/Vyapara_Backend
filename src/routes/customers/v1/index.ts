@@ -4,17 +4,21 @@ import { sequelize } from '../../../utils/database.js';
 import CustomerController from '../../../controller/CustomerController';
 import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
+import CustomerAddressModel from '../../../models/customerAddress';
 import ControllerRoutes from './customers';
 
 const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
+const CustomerAddress = CustomerAddressModel(sequelize);
 
 Users.associate({
   CustomerDetails,
+  CustomerAddress,
 });
 CustomerDetails.associate({ Users });
+CustomerAddress.associate({ Users });
 
-const CustomersController = new CustomerController(Users, CustomerDetails);
+const CustomersController = new CustomerController(Users, CustomerDetails, CustomerAddress);
 
 const CustomersControllerRoutes = ControllerRoutes(CustomersController);
 

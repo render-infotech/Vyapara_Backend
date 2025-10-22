@@ -163,7 +163,7 @@ export default class VendorsController {
         responseData = prepareJSONResponse(allVendorsData, 'Success', statusCodes.OK);
       }
     } catch (error) {
-      logger.error('Error retrieving Vendor data in getVendors.', error);
+      logger.error('getVendors - Error retrieving Vendor data.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
     logger.info(`getVendors - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
@@ -284,16 +284,16 @@ export default class VendorsController {
           }
 
           responseData = prepareJSONResponse({ vendor_id: newUser.toJSON().id }, 'Success', statusCodes.OK);
-          logger.info(
-            `registerVendor Vendor Registered successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
-          );
+          logger.info(`registerVendor - Added new entry: ${JSON.stringify(newVendor)}`);
         }
       } catch (error) {
-        logger.error('Error registerVendor in Vendor Registration.', error);
+        logger.error('registerVendor - Error in Vendor Registration.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`registerVendor - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(
+      `registerVendor Vendor Registered successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
     return res.status(responseData.status).json(responseData);
   }
 
@@ -366,7 +366,7 @@ export default class VendorsController {
             try {
               await removeS3File(oldProfilePic);
             } catch (error) {
-              logger.error('Error deleting old profile picture', error);
+              logger.error('updateProfile - Error deleting old profile picture', error);
             }
           }
           await this.users.update(
@@ -415,7 +415,7 @@ export default class VendorsController {
           responseData = prepareJSONResponse({ vendor_id: vendorRecord.vendor_id }, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('Error updating in Vendor updateVendor.', error);
+        logger.error('updateProfile- Error updating in Vendor.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
@@ -425,9 +425,9 @@ export default class VendorsController {
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddMaterial(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['vendor_id', 'name'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -436,17 +436,18 @@ export default class VendorsController {
     } else {
       try {
         const recordExists = await this.vendorDetails.findOne({
-          where: { vendor_id: requestBody.vendor_id },
+          where: { vendor_id: requestData.vendor_id },
         });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
           const materials = recordExists.materials || [];
 
-          const newMaterial = { id: uuidv4(), name: requestBody?.name };
+          const newMaterial = { id: uuidv4(), name: requestData?.name };
           const updatedMaterials = [...materials, newMaterial];
 
-          await recordExists.update({ materials: updatedMaterials, is_complete: 1 });
+          const newData = await recordExists.update({ materials: updatedMaterials, is_complete: 1 });
+          logger.info(`vendorAddMaterial - Added new entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -454,13 +455,13 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorAddMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorUpdateMaterial(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const { vendor_id, material_id, name } = req.body;
     const mandatoryFields = ['vendor_id', 'material_id', 'name'];
     const missingFields = mandatoryFields.filter((field) => !req.body[field]);
@@ -482,7 +483,8 @@ export default class VendorsController {
             responseData = prepareJSONResponse({}, 'Material not found', statusCodes.NOT_FOUND);
           } else {
             materials[materialIndex] = { ...materials[materialIndex], name };
-            await recordExists.update({ materials });
+            const newData = await recordExists.update({ materials });
+            logger.info(`vendorUpdateMaterial - Updated the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -491,13 +493,13 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorUpdateMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorUpdateMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeleteMaterial(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const { vendor_id, material_id } = req.body;
     const mandatoryFields = ['vendor_id', 'material_id'];
     const missingFields = mandatoryFields.filter((field) => !req.body[field]);
@@ -518,7 +520,8 @@ export default class VendorsController {
           if (materials.length === updatedMaterials.length) {
             responseData = prepareJSONResponse({}, 'Material not found', statusCodes.NOT_FOUND);
           } else {
-            await recordExists.update({ materials: updatedMaterials });
+            const newData = await recordExists.update({ materials: updatedMaterials });
+            logger.info(`vendorDeleteMaterial - Soft deleted the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -527,16 +530,16 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorDeleteMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorDeleteMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddPaymentMode(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const { vendor_id, mode } = req.body;
     const mandatoryFields = ['vendor_id', 'mode'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -553,7 +556,8 @@ export default class VendorsController {
           vendorRecord.payment_modes = updatedModes;
           vendorRecord.is_complete = 1;
 
-          await vendorRecord.save();
+          const newData = await vendorRecord.save();
+          logger.info(`vendorAddPaymentMode - Created new entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -561,17 +565,16 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-
-    logger.info(`vendorAddPaymentMode - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddPaymentMode - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeletePaymentMode(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const { vendor_id, mode } = req.body;
     const mandatoryFields = ['vendor_id', 'mode'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -588,7 +591,8 @@ export default class VendorsController {
           if (paymentModes.length === updatedModes.length) {
             responseData = prepareJSONResponse({}, 'Payment mode not found', statusCodes.NOT_FOUND);
           } else {
-            await vendorRecord.update({ payment_modes: updatedModes });
+            const newData = await vendorRecord.update({ payment_modes: updatedModes });
+            logger.info(`vendorDeletePaymentMode - Soft deleted the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -598,18 +602,18 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `vendorDeletePaymentMode - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `vendorDeletePaymentMode - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddWorkingHour(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const { vendor_id, day, open, close, is_closed } = req.body;
     const mandatoryFields = ['vendor_id', 'day', 'open', 'close', 'is_closed'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestBody[field] === undefined || requestBody[field] === null,
+      (field) => requestData[field] === undefined || requestData[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -626,7 +630,8 @@ export default class VendorsController {
           const workingHours = vendorRecord.working_hours || [];
           const newHour = { id: uuidv4(), day, open: open, close: close, is_closed };
           workingHours.push(newHour);
-          await vendorRecord.update({ working_hours: workingHours });
+          const newData = await vendorRecord.update({ working_hours: workingHours });
+          logger.info(`vendorAddWorkingHour - Created new entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -634,18 +639,17 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-
-    logger.info(`vendorAddWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorUpdateWorkingHour(req: Request, res: Response) {
-    const requestBody = req.body;
-    const { vendor_id, hour_id, day, open, close, is_closed } = requestBody;
+    const requestData = req.body;
+    const { vendor_id, hour_id, day, open, close, is_closed } = requestData;
     const mandatoryFields = ['vendor_id', 'hour_id', 'day', 'is_closed'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestBody[field] === undefined || requestBody[field] === null,
+      (field) => requestData[field] === undefined || requestData[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -665,7 +669,8 @@ export default class VendorsController {
             responseData = prepareJSONResponse({}, 'Working hour not found', statusCodes.NOT_FOUND);
           } else {
             workingHours[index] = { ...workingHours[index], day, open: open || null, close: close || null, is_closed };
-            await vendorRecord.update({ working_hours: workingHours });
+            const newData = await vendorRecord.update({ working_hours: workingHours });
+            logger.info(`vendorUpdateWorkingHour - Updated the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -674,20 +679,19 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-
     logger.info(
-      `vendorUpdateWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `vendorUpdateWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeleteWorkingHour(req: Request, res: Response) {
-    const requestBody = req.body;
-    const { vendor_id, hour_id } = requestBody;
+    const requestData = req.body;
+    const { vendor_id, hour_id } = requestData;
     const mandatoryFields = ['vendor_id', 'hour_id'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestBody[field] === undefined || requestBody[field] === null,
+      (field) => requestData[field] === undefined || requestData[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -706,7 +710,8 @@ export default class VendorsController {
           if (workingHours.length === updatedHours.length) {
             responseData = prepareJSONResponse({}, 'Working hour not found', statusCodes.NOT_FOUND);
           } else {
-            await vendorRecord.update({ working_hours: updatedHours });
+            const newData = await vendorRecord.update({ working_hours: updatedHours });
+            logger.info(`vendorDeleteWorkingHour - Soft deleted the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -716,8 +721,130 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `vendorDeleteWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `vendorDeleteWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async reactivateVendor(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = ['vendor_id'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const vendorWhere: any = {
+          id: requestData.vendor_id,
+          role_id: predefinedRoles.Vendor.id,
+          status: 1,
+        };
+
+        const recordExists = await this.users.findOne({
+          where: vendorWhere,
+        });
+        responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (!recordExists.is_deactivated) {
+            responseData = prepareJSONResponse({}, 'Vendor already activated.', statusCodes.BAD_REQUEST);
+          } else {
+            recordExists.is_deactivated = 0;
+            const newData = await recordExists.save();
+            logger.info(`reactivateVendor - Updated the entry: ${JSON.stringify(newData)} }`);
+            responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('reactivateVendor - Error reactivating Vendor.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `reactivateVendor - Reactivate Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async deactivateVendor(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = ['vendor_id'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const vendorWhere: any = {
+          id: requestData.vendor_id,
+          role_id: predefinedRoles.Vendor.id,
+          status: 1,
+        };
+        const recordExists = await this.users.findOne({
+          where: vendorWhere,
+        });
+        responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (recordExists.is_deactivated) {
+            responseData = prepareJSONResponse({}, 'Vendor already deactivated.', statusCodes.BAD_REQUEST);
+          } else {
+            recordExists.is_deactivated = 1;
+            const newData = await recordExists.save();
+            logger.info(`deactivateVendor - Updated the entry: ${JSON.stringify(newData)} }`);
+            responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('deactivateVendor - Error deactivating vendor.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `deactivateVendor - Deactivate Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async deleteVendor(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = ['vendor_id'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const vendorWhere: any = {
+          id: requestData.vendor_id,
+          role_id: predefinedRoles.Vendor.id,
+          is_deactivated: 0,
+        };
+        const recordExists = await this.users.findOne({
+          where: vendorWhere,
+        });
+        responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          recordExists.is_deactivated = 1;
+          recordExists.status = 0;
+          const newData = await recordExists.save();
+          logger.info(`deleteVendor - Soft deleted the entry: ${JSON.stringify(newData)} }`);
+          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('deleteVendor - Error deleting vendor:', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(`Delete Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }

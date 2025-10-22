@@ -17,5 +17,19 @@ export default (vendorsController: VendorController) => {
     Authentication(),
     vendorsController.vendorDeletePaymentMode.bind(vendorsController),
   );
+  router.post('/add/working-hours', Authentication(), vendorsController.vendorAddWorkingHour.bind(vendorsController));
+  router.post(
+    '/update/working-hours',
+    Authentication(),
+    vendorsController.vendorUpdateWorkingHour.bind(vendorsController),
+  );
+  router.post(
+    '/delete/working-hours',
+    Authentication(),
+    vendorsController.vendorDeleteWorkingHour.bind(vendorsController),
+  );
+  router.post('/enable-login', Authentication(), vendorsController.reactivateVendor.bind(vendorsController));
+  router.post('/disable-login', Authentication(), vendorsController.deactivateVendor.bind(vendorsController));
+  router.post('/delete', Authentication(), vendorsController.deleteVendor.bind(vendorsController));
   return router;
 };

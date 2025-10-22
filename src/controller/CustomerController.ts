@@ -14,14 +14,20 @@ export default class CustomersController {
   // @ts-ignore
   private customerDetails: CustomerDetails;
 
+  // @ts-ignore
+  private customerAddress: CustomerAddress;
+
   constructor(
     // @ts-ignore
     users: Users,
     // @ts-ignore
     customerDetails: CustomerDetails,
+    // @ts-ignore
+    customerAddress: CustomerAddress,
   ) {
     this.users = users;
     this.customerDetails = customerDetails;
+    this.customerAddress = customerAddress;
   }
 
   async createCustomer(data: any) {
@@ -36,9 +42,9 @@ export default class CustomersController {
 
   // eslint-disable-next-line class-methods-use-this
   async createCustomerDetails(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -46,23 +52,30 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.users.findOne({ where: { id: requestBody?.id } });
+        const userWhere: any = {
+          id: requestData?.id,
+          role_id: predefinedRoles.User.id,
+          is_deactivated: 0,
+          status: 1,
+        };
+        const recordExists = await this.users.findOne({ where: userWhere });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
         } else {
           const existingDetails = await this.customerDetails.findOne({
-            where: { customer_id: requestBody.id },
+            where: { customer_id: requestData.id },
           });
           if (existingDetails) {
             responseData = prepareJSONResponse({}, 'Customer details already exist', statusCodes.BAD_REQUEST);
           }
-          await this.createCustomer({
-            customer_id: requestBody.id,
-            nominee_name: requestBody.nominee_name || null,
-            nominee_phone_country_code: requestBody.nominee_phone_country_code || null,
-            nominee_phone_code: requestBody.nominee_phone_code || null,
-            nominee_phone: requestBody.nominee_phone || null,
+          const newData = await this.createCustomer({
+            customer_id: requestData.id,
+            nominee_name: requestData.nominee_name || null,
+            nominee_phone_country_code: requestData.nominee_phone_country_code || null,
+            nominee_phone_code: requestData.nominee_phone_code || null,
+            nominee_phone: requestData.nominee_phone || null,
           });
+          logger.info(`createCustomerDetails - Added new entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -71,7 +84,7 @@ export default class CustomersController {
       }
     }
     logger.info(
-      `createCustomerDetails - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `createCustomerDetails - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
@@ -127,14 +140,19 @@ export default class CustomersController {
               'user_verified',
               'is_deactivated',
             ],
+            include: [
+              {
+                model: this.customerAddress,
+                as: 'customerAddress',
+                attributes: { exclude: ['status', 'created_at', 'updated_at'] },
+              },
+            ],
           },
         ],
         attributes: { exclude: ['created_at', 'updated_at'] },
         order: [[{ model: this.users, as: 'user' }, 'first_name', 'ASC']],
       });
-
       logger.info(`getCustomer - fetched customers ${JSON.stringify(customerRecords)}`);
-
       if (customerRecords.length === 0) {
         responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
       } else {
@@ -161,6 +179,7 @@ export default class CustomersController {
               nominee_phone_country_code: customer?.nominee_phone_country_code,
               nominee_phone_code: customer?.nominee_phone_code,
               nominee_phone: customer?.nominee_phone,
+              address: customer?.user?.customerAddress,
             };
           }),
         );
@@ -173,20 +192,19 @@ export default class CustomersController {
         }
         responseData = prepareJSONResponse(allCustomersData, 'Success', statusCodes.OK);
       }
-      logger.info(`getCustomer - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     } catch (error) {
       logger.error('Error retrieving Customer data in getCustomer.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-
+    logger.info(`getCustomer - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async updateCustomerDetails(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['customer_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -194,16 +212,23 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.customerDetails.findOne({ where: { customer_id: requestBody?.customer_id } });
+        const userWhere: any = {
+          id: requestData?.customer_id,
+          role_id: predefinedRoles.User.id,
+          is_deactivated: 0,
+          status: 1,
+        };
+        const recordExists = await this.customerDetails.findOne({ where: userWhere });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
         } else {
-          await recordExists.update({
-            nominee_name: requestBody?.nominee_name,
-            nominee_phone_country_code: requestBody?.nominee_phone_country_code,
-            nominee_phone_code: requestBody?.nominee_phone_code,
-            nominee_phone: requestBody?.nominee_phone,
+          const newData = await recordExists.update({
+            nominee_name: requestData?.nominee_name,
+            nominee_phone_country_code: requestData?.nominee_phone_country_code,
+            nominee_phone_code: requestData?.nominee_phone_code,
+            nominee_phone: requestData?.nominee_phone,
           });
+          logger.info(`updateCustomerDetails - Updated the entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -212,16 +237,16 @@ export default class CustomersController {
       }
     }
     logger.info(
-      `updateCustomerDetails - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `updateCustomerDetails - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async reactivateCustomer(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['customer_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -229,8 +254,13 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
+        const userWhere: any = {
+          id: requestData.customer_id,
+          role_id: predefinedRoles.User.id,
+          status: 1,
+        };
         const recordExists = await this.users.findOne({
-          where: { id: requestBody.customer_id, role_id: predefinedRoles.User.id, status: 1 },
+          where: userWhere,
         });
         responseData = prepareJSONResponse({}, 'Customer does not exists.', statusCodes.BAD_REQUEST);
         if (recordExists) {
@@ -238,26 +268,27 @@ export default class CustomersController {
             responseData = prepareJSONResponse({}, 'Customer already activated.', statusCodes.BAD_REQUEST);
           } else {
             recordExists.is_deactivated = 0;
-            await recordExists.save();
+            const newData = await recordExists.save();
+            logger.info(`reactivateCustomer - Updated the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
       } catch (error) {
-        logger.error('reactivateCustomer - Error reactivating User.', error);
+        logger.error('reactivateCustomer - Error reactivating customer.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
     logger.info(
-      `reactivateCustomer - Reactivate Customer Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `reactivateCustomer - Reactivate Customer Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async deactivateCustomer(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['customer_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -265,8 +296,13 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
+        const userWhere: any = {
+          id: requestData.customer_id,
+          role_id: predefinedRoles.User.id,
+          status: 1,
+        };
         const recordExists = await this.users.findOne({
-          where: { id: requestBody.customer_id, role_id: predefinedRoles.User.id, status: 1 },
+          where: userWhere,
         });
         responseData = prepareJSONResponse({}, 'Customer does not exists.', statusCodes.BAD_REQUEST);
         if (recordExists) {
@@ -274,7 +310,8 @@ export default class CustomersController {
             responseData = prepareJSONResponse({}, 'Customer already deactivated.', statusCodes.BAD_REQUEST);
           } else {
             recordExists.is_deactivated = 1;
-            await recordExists.save();
+            const newData = await recordExists.save();
+            logger.info(`deactivateCustomer - Updated the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -284,16 +321,16 @@ export default class CustomersController {
       }
     }
     logger.info(
-      `deactivateCustomer - Deactivate Customer Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      `deactivateCustomer - Deactivate Customer Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async deleteCustomer(req: Request, res: Response) {
-    const requestBody = req.body;
+    const requestData = req.body;
     const mandatoryFields = ['customer_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -301,46 +338,263 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
+        const userWhere: any = {
+          id: requestData.customer_id,
+          role_id: predefinedRoles.User.id,
+        };
         const recordExists = await this.users.findOne({
-          where: { id: requestBody.customer_id, role_id: predefinedRoles.User.id, status: 1, is_deactivated: 0 },
+          where: userWhere,
         });
         responseData = prepareJSONResponse({}, 'Customer does not exists.', statusCodes.BAD_REQUEST);
         if (recordExists) {
           recordExists.is_deactivated = 1;
           recordExists.status = 0;
-          await recordExists.save();
+          const newData = await recordExists.save();
+          logger.info(`deleteCustomer - Updated the entry: ${JSON.stringify(newData)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('deleteUser - Error deleting customer:', error);
+        logger.error('deleteCustomer - Error deleting customer:', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`Delete Customer Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`Delete Customer Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
-  //   // eslint-disable-next-line class-methods-use-this
-  //   async deleteCustomerDetails(req: Request, res: Response) {
-  //     const { customer_id } = req.params;
-  //     let responseData: typeof prepareJSONResponse = {};
-  //     try {
-  //       if (!customer_id) {
-  //         responseData = prepareJSONResponse({}, 'Missing required fields: customer_id', statusCodes.BAD_REQUEST);
-  //       } else {
-  //         const details = await this.customerDetails.findOne({ where: { customer_id } });
-  //         if (!details) {
-  //           responseData = prepareJSONResponse({}, 'Customer details not found', statusCodes.NOT_FOUND);
-  //         } else {
-  //           await details.destroy();
-  //           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
-  //         }
-  //       }
-  //     } catch (error) {
-  //       logger.error('Error deleting Customer Details in deleteCustomerDetails.', error);
-  //       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
-  //     }
-  //     logger.info(`deleteCustomerDetails - Req and Res: ${JSON.stringify(req.params)} - ${JSON.stringify(responseData)}`);
-  //     return res.status(responseData.status).json(responseData);
-  //   }
+  // eslint-disable-next-line class-methods-use-this
+  async createCustomerAddress(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = [
+      'customer_id',
+      'full_name',
+      'phone_country_code',
+      'phone_code',
+      'phone',
+      'country',
+      'state',
+      'city',
+      'address_line_1',
+      'pincode',
+      'geo_location',
+    ];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+
+    if (missingFields.length > 0) {
+      const message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const userWhere: any = {
+          id: requestData.customer_id,
+          role_id: predefinedRoles.User.id,
+          // is_deactivated: 0,
+          // status: 1,
+        };
+        const recordExists = await this.users.findOne({
+          where: userWhere,
+        });
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
+        } else {
+          if (requestData.is_default) {
+            await this.customerAddress.update(
+              { is_default: false },
+              { where: { customer_id: requestData.customer_id } },
+            );
+          }
+
+          const newData = await this.customerAddress.create({
+            customer_id: requestData.customer_id,
+            full_name: requestData.full_name,
+            phone_country_code: requestData.phone_country_code,
+            phone_code: requestData.phone_code,
+            phone: requestData.phone,
+            country: requestData.country,
+            state: requestData.state,
+            city: requestData.city,
+            address_line_1: requestData.address_line_1,
+            address_line_2: requestData.address_line_2 || '',
+            landmark: requestData.landmark || null,
+            pincode: requestData.pincode,
+            geo_location: requestData.geo_location || null,
+            address_type: requestData.address_type || 'Other',
+            is_default: requestData.is_default || false,
+            status: 1,
+          });
+          logger.info(`createCustomerAddress - Added new entry: ${JSON.stringify(newData)} }`);
+          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('createCustomerAddress - Error creating Customer Address.', error);
+        throw new SqlError(error);
+      }
+    }
+    logger.info(
+      `createCustomerAddress - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getCustomerAddresses(req: Request, res: Response) {
+    const requestData = req.query;
+    const mandatoryFields = ['customer_id'];
+    if (requestData.id) {
+      mandatoryFields.push('id');
+    }
+    const missingFields = mandatoryFields.filter(
+      (field) => requestData[field] === undefined || requestData[field] === null || requestData[field] === '',
+    );
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const userWhere: any = {
+          id: requestData.customer_id,
+          role_id: predefinedRoles.User.id,
+          is_deactivated: 0,
+          status: 1,
+        };
+        const addressWhere: any = {
+          status: 1,
+        };
+        if (requestData.id) {
+          addressWhere.id = requestData.id;
+        }
+
+        const recordExists = await this.users.findOne({
+          where: userWhere,
+          include: [
+            {
+              model: this.customerAddress,
+              as: 'customerAddress',
+              where: addressWhere,
+              attributes: { exclude: ['status', 'created_at', 'updated_at'] },
+              order: [['full_name', 'ASC']],
+            },
+          ],
+        });
+        logger.info(`getCustomerAddresses - fetched addresses ${JSON.stringify(recordExists)}`);
+
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
+        } else {
+          if (recordExists?.customerAddress.length === 0) {
+            responseData = prepareJSONResponse([], 'No address found.', statusCodes.NOT_FOUND);
+          } else {
+            let allCustomerAddress: any;
+            if (requestData.id) {
+              allCustomerAddress = recordExists?.customerAddress[0];
+            } else {
+              allCustomerAddress = recordExists?.customerAddress;
+            }
+            responseData = prepareJSONResponse(allCustomerAddress, 'Success', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('getCustomerAddresses - Error retrieving Customer Addresses.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+
+    logger.info(`getCustomerAddresses - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async updateCustomerAddress(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = ['customer_id', 'id'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const recordExists = await this.customerAddress.findOne({
+          where: { id: requestData.id, customer_id: requestData.customer_id, status: 1 },
+        });
+
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'Address not found', statusCodes.NOT_FOUND);
+        } else {
+          if (requestData.is_default) {
+            await this.customerAddress.update(
+              { is_default: false },
+              { where: { customer_id: requestData.customer_id } },
+            );
+          }
+
+          const newData = await recordExists.update({
+            full_name: requestData.full_name ?? recordExists.full_name,
+            phone_country_code: requestData.phone_country_code ?? recordExists.phone_country_code,
+            phone_code: requestData.phone_code ?? recordExists.phone_code,
+            phone: requestData.phone ?? recordExists.phone,
+            country: requestData.country ?? recordExists.country,
+            state: requestData.state ?? recordExists.state,
+            city: requestData.city ?? recordExists.city,
+            address_line_1: requestData.address_line_1 ?? recordExists.address_line_1,
+            address_line_2: requestData.address_line_2 ?? recordExists.address_line_2,
+            landmark: requestData.landmark ?? recordExists.landmark,
+            pincode: requestData.pincode ?? recordExists.pincode,
+            geo_location: requestData.geo_location ?? recordExists.geo_location,
+            address_type: requestData.address_type ?? recordExists.address_type,
+            is_default: requestData.is_default ?? false,
+          });
+          logger.info(`updateCustomerAddress - updated entry ${JSON.stringify(newData)}`);
+          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('updateCustomerAddress - Error updating Customer Address.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `updateCustomerAddress - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async deleteCustomerAddress(req: Request, res: Response) {
+    const requestData = req.body;
+    const mandatoryFields = ['customer_id', 'id'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const recordExists = await this.customerAddress.findOne({
+          where: { id: requestData.id, customer_id: requestData.customer_id },
+        });
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'Address not found', statusCodes.NOT_FOUND);
+        } else {
+          const newData = await recordExists.update({ status: 0 });
+          logger.info(`deleteCustomerAddress - soft deleted entry ${newData}`);
+          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('deleteCustomerAddress - Error deleting Customer Address.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `deleteCustomerAddress - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
 }

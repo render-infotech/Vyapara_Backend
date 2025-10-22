@@ -1,12 +1,13 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
-import { statusCodes } from '../utils/constants';
+import { predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger';
 import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils';
 import SqlError from '../errors/sqlError';
 import Users from '../models/users';
 import CustomerDetails from '../models/customerDetails';
+import { removeS3File, singleImageUpload } from '../utils/s3uploads';
 
 export default class UsersController {
   // @ts-ignore
@@ -99,17 +100,16 @@ export default class UsersController {
             };
             const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
             const dataForUser = { user: data, token, expiresIn: 365 };
+            logger.info(`registerUser - Added new entry: ${JSON.stringify(newUser)}`);
             responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
-            logger.info(
-              `registerUser User Registered successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
-            );
           }
         }
       }
     } catch (error) {
-      logger.error('Error registerUser in User Registration.', error);
+      logger.error('registerUser - Error in User Registration.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
+    logger.info(`registerUser - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -189,9 +189,96 @@ export default class UsersController {
         }
       }
     } catch (error) {
-      logger.error('Error loginUser in User Login.', error);
+      logger.error('loginUser - Error in User Login.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async updateProfile(req: Request, res: Response) {
+    let uploaded = false;
+    let fileLocation = null;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        singleImageUpload('profile_pic')(req, res, (err: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      uploaded = true;
+      // @ts-ignore
+      fileLocation = req?.file?.location;
+    } catch (error) {
+      logger.error('Error in uploading image for updateProfile', error);
+    }
+    // @ts-ignore
+    const { userId } = req.user;
+    const requestData = req.body;
+    const mandatoryFields = ['first_name', 'last_name', 'email'];
+    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const userWhere: any = {
+          id: userId,
+          role_id: predefinedRoles.User.id,
+        };
+        const recordExists = await this.users.findOne({
+          attributes: ['id', 'first_name', 'last_name', 'email', 'is_deactivated', 'status', 'profile_pic'],
+          where: userWhere,
+        });
+        responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+        if (recordExists) {
+          if (!recordExists.is_deactivated) {
+            if (!recordExists.status) {
+              responseData = prepareJSONResponse(
+                {},
+                'Kindly contact admin for enabling the system access',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              const oldProfilePic = recordExists.profile_pic;
+              const newProfilePic = uploaded && fileLocation ? fileLocation : oldProfilePic;
+              if (uploaded && oldProfilePic && oldProfilePic !== newProfilePic) {
+                try {
+                  await removeS3File(oldProfilePic);
+                } catch (error) {
+                  logger.error('updateProfile - Error deleting old profile picture', error);
+                }
+              }
+
+              const newData = await this.users.update(
+                {
+                  first_name: requestData.first_name,
+                  last_name: requestData.last_name,
+                  email: requestData.email,
+                  dob: requestData.dob || recordExists?.dob,
+                  phone_country_code: requestData.phone_country_code || recordExists?.phone_country_code,
+                  phone_code: requestData.phone_code || recordExists?.phone_code,
+                  phone: requestData.phone || recordExists?.phone,
+                  profile_pic: newProfilePic,
+                },
+                { where: { id: userId, role_id: predefinedRoles?.User?.id } },
+              );
+              logger.info(`updateProfile - Updated the entry: ${JSON.stringify(newData)} }`);
+              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('updateProfile - Error Exception in User Update Profile.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(`updateProfile User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -239,7 +326,7 @@ export default class UsersController {
         }
       }
     } catch (error) {
-      logger.error('Error Exception in User Forgot password.', error);
+      logger.error('forgotPassword - Error Exception in User Forgot password.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
     logger.info(`forgotPassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
@@ -294,7 +381,7 @@ export default class UsersController {
         responseData = prepareJSONResponse({}, 'Kindly login to perform the action.', statusCodes.BAD_REQUEST);
       }
     } catch (error) {
-      logger.error('Error Exception in User Change password.', error);
+      logger.error('changePassword - Error Exception in User Change password.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
     logger.info(`changePassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
@@ -309,11 +396,13 @@ export default class UsersController {
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       if (userId) {
+        const userWhere: any = {
+          id: userId,
+          role_id: predefinedRoles.User.id,
+        };
         const recordExists = await this.users.findOne({
           attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
-          where: {
-            id: userId,
-          },
+          where: userWhere,
         });
         responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
         if (recordExists) {
@@ -350,11 +439,13 @@ export default class UsersController {
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       if (userId) {
+        const userWhere: any = {
+          id: userId,
+          role_id: predefinedRoles.User.id,
+        };
         const recordExists = await this.users.findOne({
           attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
-          where: {
-            id: userId,
-          },
+          where: userWhere,
         });
         responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
         if (recordExists) {
