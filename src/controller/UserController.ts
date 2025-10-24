@@ -66,6 +66,16 @@ export default class UsersController {
     }
   }
 
+  async createCustomer(data: any) {
+    try {
+      const customerDetails = await this.customerDetails.create(data);
+      return customerDetails;
+    } catch (error) {
+      logger.error('Error Exception in createCustomer.', error, data);
+      throw new SqlError(error);
+    }
+  }
+
   // eslint-disable-next-line class-methods-use-this
   async registerUser(req: Request, res: Response) {
     const requestData = req.body;
@@ -114,7 +124,13 @@ export default class UsersController {
             };
             const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
             const dataForUser = { user: data, token, expiresIn: 365 };
-            logger.info(`registerUser - Added new entry: ${JSON.stringify(newUser)}`);
+
+            const newData = await this.createCustomer({
+              customer_id: jwtData.userId,
+            });
+            logger.info(
+              `registerUser - Added new entry in user table and customerDetails table:  ${JSON.stringify(newUser)} ,  ${JSON.stringify(newData)}`,
+            );
             responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
           }
         }
@@ -235,10 +251,12 @@ export default class UsersController {
           model: this.customerDetails,
           as: 'customerDetails',
           where: customerWhere,
+          required: false,
           include: [
             {
               model: this.customerAddress,
               as: 'customerAddress',
+              required: false,
               where: addressWhere,
             },
           ],
@@ -247,6 +265,7 @@ export default class UsersController {
         include.push({
           model: this.vendorDetails,
           as: 'vendorDetails',
+          required: false,
           where: vendorWhere,
         });
       }

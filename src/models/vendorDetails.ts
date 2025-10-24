@@ -127,6 +127,7 @@ const VendorDetailsModel = (sequelize: Sequelize): typeof VendorDetails => {
       vendor_id: {
         type: DataTypes.BIGINT,
         allowNull: false,
+        unique: true,
         comment: 'Reference to the user this vendor belongs to',
       },
       vendor_code: {

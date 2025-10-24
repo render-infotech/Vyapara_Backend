@@ -1,12 +1,13 @@
 import express from 'express';
 import CustomerController from '../../../controller/CustomerController';
-import Authentication from '../../../middleware/authentication.js';
+import Authentication from '../../../middleware/authentication';
+import Obsolete from '../../../middleware/obsolete';
 
 const router = express.Router();
 
 export default (customersController: CustomerController) => {
   router.get('/', Authentication(), customersController.getCustomer.bind(customersController));
-  router.post('/create', Authentication(), customersController.createCustomerDetails.bind(customersController));
+  router.post('/create', Obsolete(), customersController.createCustomerDetails.bind(customersController));
   router.post('/update', Authentication(), customersController.updateCustomerDetails.bind(customersController));
   router.get('/address/all', Authentication(), customersController.getCustomerAddresses.bind(customersController));
   router.post('/address/create', Authentication(), customersController.createCustomerAddress.bind(customersController));
