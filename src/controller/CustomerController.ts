@@ -398,12 +398,15 @@ export default class CustomersController {
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
         } else {
-          if (requestData.is_default) {
-            await this.customerAddress.update(
-              { is_default: false },
-              { where: { customer_id: requestData.customer_id } },
-            );
+          const defaultExists = await this.customerAddress.findOne({
+            where: { customer_id: requestData.customer_id, is_default: 1 },
+          });
+
+          if (Number(requestData.is_default) === 1) {
+            await this.customerAddress.update({ is_default: 0 }, { where: { customer_id: requestData.customer_id } });
           }
+
+          const shouldBeDefault = !defaultExists || Number(requestData.is_default) === 1 ? 1 : 0;
 
           const newData = await this.customerAddress.create({
             customer_id: requestData.customer_id,
@@ -420,7 +423,7 @@ export default class CustomersController {
             pincode: requestData.pincode,
             geo_location: requestData.geo_location || null,
             address_type: requestData.address_type || 'Other',
-            is_default: requestData.is_default || false,
+            is_default: shouldBeDefault,
             status: 1,
           });
           logger.info(`createCustomerAddress - Added new entry: ${JSON.stringify(newData)} }`);

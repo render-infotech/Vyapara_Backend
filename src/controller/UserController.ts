@@ -7,6 +7,8 @@ import { prepareJSONResponse, createValidator, createFilterBody, generatePasswor
 import SqlError from '../errors/sqlError';
 import Users from '../models/users';
 import CustomerDetails from '../models/customerDetails';
+import CustomerAddress from '../models/customerAddress';
+import VendorDetails from '../models/vendorDetails';
 import { removeS3File, singleImageUpload } from '../utils/s3uploads';
 
 export default class UsersController {
@@ -16,14 +18,26 @@ export default class UsersController {
   // @ts-ignore
   private customerDetails: CustomerDetails;
 
+  // @ts-ignore
+  private customerAddress: CustomerAddress;
+
+  // @ts-ignore
+  private vendorDetails: VendorDetails;
+
   constructor(
     // @ts-ignore
     users: Users,
     // @ts-ignore
     customerDetails: CustomerDetails,
+    // @ts-ignore
+    customerAddress: CustomerAddress,
+    // @ts-ignore
+    vendorDetails: VendorDetails,
   ) {
     this.users = users;
     this.customerDetails = customerDetails;
+    this.customerAddress = customerAddress;
+    this.vendorDetails = vendorDetails;
   }
 
   async emailExists(email) {
@@ -196,6 +210,149 @@ export default class UsersController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async myProfile(req: Request, res: Response) {
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    try {
+      if (!userId) {
+        responseData = prepareJSONResponse({}, 'Kindly login to perform the action.', statusCodes.BAD_REQUEST);
+      }
+      const userWhere: any = {
+        id: userId,
+        role_id,
+      };
+      const customerWhere: any = {};
+      const addressWhere: any = {};
+      const vendorWhere: any = {
+        is_complete: 1,
+      };
+
+      const include: any[] = [];
+
+      if (role_id === 10) {
+        include.push({
+          model: this.customerDetails,
+          as: 'customerDetails',
+          where: customerWhere,
+          include: [
+            {
+              model: this.customerAddress,
+              as: 'customerAddress',
+              where: addressWhere,
+            },
+          ],
+        });
+      } else if (role_id === 2) {
+        include.push({
+          model: this.vendorDetails,
+          as: 'vendorDetails',
+          where: vendorWhere,
+        });
+      }
+
+      const recordExists = await this.users.findOne({
+        where: userWhere,
+        include,
+      });
+      logger.info(`myProfile - fetched user: ${JSON.stringify(recordExists)}`);
+
+      responseData = prepareJSONResponse({}, 'Invalid email or password.', statusCodes.BAD_REQUEST);
+      if (recordExists) {
+        if (!recordExists.is_deactivated) {
+          if (!recordExists.status) {
+            responseData = prepareJSONResponse(
+              {},
+              'Kindly contact admin for enabling the system access',
+              statusCodes.BAD_REQUEST,
+            );
+          } else {
+            let data: any = {};
+            data = {
+              id: recordExists?.id,
+              first_name: recordExists?.first_name,
+              last_name: recordExists?.last_name,
+              email: recordExists?.email,
+              profile_pic: recordExists?.profile_pic,
+              role_id: recordExists?.role_id,
+              phone_country_code: recordExists?.phone_country_code,
+              phone_code: recordExists?.phone_code,
+              phone: recordExists?.phone,
+              dob: recordExists?.dob || '',
+              gender: recordExists?.gender,
+              two_factor_enabled: recordExists?.two_factor_enabled,
+            };
+            switch (role_id) {
+              case 10:
+                const defaultAddress =
+                  recordExists?.customerDetails?.customerAddress?.find((addr: any) => addr.is_default === 1) || null;
+
+                const addressLine =
+                  [defaultAddress?.address_line_1, defaultAddress?.address_line_2].filter(Boolean).join(' ') || '';
+
+                data = {
+                  ...data,
+                  identifier: recordExists?.customerDetails?.customer_code,
+                  country: defaultAddress?.country || '',
+                  state: defaultAddress?.state || '',
+                  city: defaultAddress?.city || '',
+                  address_line_1: addressLine,
+                  pincode: defaultAddress?.pincode || '',
+                  associations: {
+                    vendor_id: null,
+                    customer_id: recordExists?.customerDetails?.customer_id || null,
+                    rider_id: null,
+                  },
+                };
+                break;
+
+              case 2:
+                data = {
+                  ...data,
+                  identifier: recordExists?.vendorDetails?.vendor_code,
+                  country: recordExists?.vendorDetails?.country || '',
+                  state: recordExists?.vendorDetails?.state || '',
+                  city: recordExists?.vendorDetails?.city || '',
+                  address_line: recordExists?.vendorDetails?.address_line || '',
+                  pincode: recordExists?.vendorDetails?.pincode || '',
+                  associations: {
+                    vendor_id: recordExists?.vendorDetails?.vendor_id || null,
+                    customer_id: null,
+                    rider_id: null,
+                  },
+                };
+                break;
+
+              default:
+                data = {
+                  ...data,
+                  identifier: '',
+                  country: '',
+                  state: '',
+                  city: '',
+                  address_line: '',
+                  pincode: '',
+                  associations: {
+                    vendor_id: null,
+                    customer_id: null,
+                    rider_id: null,
+                  },
+                };
+                break;
+            }
+            responseData = prepareJSONResponse(data, 'Success', statusCodes.OK);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('myProfile - Error Exception in User My Profile.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+    logger.info(`myProfile User Req and Res: ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async updateProfile(req: Request, res: Response) {
     let uploaded = false;
     let fileLocation = null;
@@ -300,6 +457,7 @@ export default class UsersController {
             is_deactivated: 0,
           },
         });
+
         responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
         if (user) {
           if (!user.is_deactivated) {

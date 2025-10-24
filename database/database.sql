@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS `vendor_details` (
   `country` VARCHAR(100) NOT NULL COMMENT 'Country name of the vendor',
   `state` VARCHAR(100) NOT NULL COMMENT 'State name of the vendor',
   `city` VARCHAR(100) NOT NULL COMMENT 'City name of the vendor',
-  `postal_code` VARCHAR(15) DEFAULT NULL COMMENT 'Postal/ZIP code of the vendor',
+  `pincode` VARCHAR(15) DEFAULT NULL COMMENT 'Postal/ZIP code of the vendor',
   `gst_number` VARCHAR(50) DEFAULT NULL COMMENT 'GST number if applicable',
   `is_gst_registered` TINYINT DEFAULT 0 COMMENT '1 if GST registered, else 0',
   `website` VARCHAR(150) DEFAULT NULL COMMENT 'Official website URL of the vendor',

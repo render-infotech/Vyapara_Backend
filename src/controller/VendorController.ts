@@ -136,7 +136,7 @@ export default class VendorsController {
               country: vendor?.country || '',
               state: vendor?.state || '',
               city: vendor?.city || '',
-              postal_code: vendor?.postal_code || '',
+              pincode: vendor?.pincode || '',
               is_gst_registered: vendor?.is_gst_registered || 0,
               gst_number: vendor?.gst_number || '',
               website: vendor?.website || '',
@@ -197,7 +197,7 @@ export default class VendorsController {
       'country',
       'state',
       'city',
-      'postal_code',
+      'pincode',
       'is_gst_registered',
     ];
     const vendorAttributes = [
@@ -325,7 +325,7 @@ export default class VendorsController {
       'country',
       'state',
       'city',
-      'postal_code',
+      'pincode',
       'is_gst_registered',
     ];
     const vendorAttributes = [

@@ -18,7 +18,7 @@ interface CustomerAddressAttributes {
   pincode?: string;
   geo_location?: string;
   address_type?: string; // Home, Work, Other
-  is_default: boolean;
+  is_default: number; // 1 = Yes, 0 = No
   status: number; // 1 = Active, 0 = Inactive
   created_at: Date;
   updated_at: Date;
@@ -61,7 +61,7 @@ class CustomerAddress
 
   public address_type?: string;
 
-  public is_default!: boolean;
+  public is_default!: number;
 
   public status!: number;
 
@@ -178,9 +178,9 @@ const CustomerAddressModel = (sequelize: Sequelize): typeof CustomerAddress => {
         comment: 'Address type (Home, Work, Other)',
       },
       is_default: {
-        type: DataTypes.BOOLEAN,
+        type: DataTypes.TINYINT,
         allowNull: false,
-        defaultValue: false,
+        defaultValue: 0,
         comment: 'Marks this as the default address for the user',
       },
       status: {

@@ -25,7 +25,7 @@ interface VendorDetailsAttributes {
   country?: string;
   state?: string;
   city?: string;
-  postal_code?: string;
+  pincode?: string;
   gst_number?: string;
   is_gst_registered?: number;
   website?: string;
@@ -64,7 +64,7 @@ class VendorDetails
 
   public city!: string;
 
-  public postal_code?: string;
+  public pincode?: string;
 
   public gst_number?: string;
 
@@ -160,7 +160,7 @@ const VendorDetailsModel = (sequelize: Sequelize): typeof VendorDetails => {
         allowNull: false,
         comment: 'City name of the vendor',
       },
-      postal_code: {
+      pincode: {
         type: DataTypes.STRING(15),
         allowNull: true,
         comment: 'Postal/ZIP code of the vendor',
