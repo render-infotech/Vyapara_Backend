@@ -18,8 +18,8 @@ Users.associate({
   CustomerAddress,
   VendorDetails,
 });
-CustomerDetails.associate({ Users });
-CustomerAddress.associate({ Users });
+CustomerDetails.associate({ Users, CustomerAddress });
+CustomerAddress.associate({ Users, CustomerDetails });
 VendorDetails.associate({ Users });
 
 const UsersController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails);

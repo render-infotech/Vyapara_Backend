@@ -5,6 +5,8 @@ import { prepareJSONResponse } from '../utils/utils';
 import SqlError from '../errors/sqlError';
 import Users from '../models/users';
 import CustomerDetails from '../models/customerDetails';
+import CustomerAddress from '../models/customerAddress';
+import DigitalPurchase from '../models/digitalPurchase';
 import { Op } from 'sequelize';
 
 export default class CustomersController {
@@ -17,6 +19,9 @@ export default class CustomersController {
   // @ts-ignore
   private customerAddress: CustomerAddress;
 
+  // @ts-ignore
+  private digitalPurchase: DigitalPurchase;
+
   constructor(
     // @ts-ignore
     users: Users,
@@ -24,10 +29,13 @@ export default class CustomersController {
     customerDetails: CustomerDetails,
     // @ts-ignore
     customerAddress: CustomerAddress,
+    // @ts-ignore
+    digitalPurchase: DigitalPurchase,
   ) {
     this.users = users;
     this.customerDetails = customerDetails;
     this.customerAddress = customerAddress;
+    this.digitalPurchase = digitalPurchase;
   }
 
   async createCustomer(data: any) {
@@ -212,13 +220,13 @@ export default class CustomersController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const userWhere: any = {
+        const customerWhere: any = {
           id: requestData?.customer_id,
           role_id: predefinedRoles.User.id,
           is_deactivated: 0,
           status: 1,
         };
-        const recordExists = await this.customerDetails.findOne({ where: userWhere });
+        const recordExists = await this.customerDetails.findOne({ where: customerWhere });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
         } else {

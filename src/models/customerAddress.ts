@@ -1,5 +1,6 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
+import CustomerDetails from './customerDetails';
 
 // Define the attributes for the CustomerAddress model
 interface CustomerAddressAttributes {
@@ -76,6 +77,9 @@ class CustomerAddress
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     user: Association<Users, InstanceType<typeof Users>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
   };
 
   /**
@@ -88,6 +92,15 @@ class CustomerAddress
       this.belongsTo(models.Users, {
         foreignKey: 'customer_id',
         as: 'user',
+      });
+    }
+
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('CustomerDetails')) {
+      this.belongsTo(models.CustomerDetails, {
+        foreignKey: 'customer_id',
+        targetKey: 'customer_id',
+        as: 'customerDetails',
       });
     }
   }

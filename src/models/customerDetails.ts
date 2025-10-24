@@ -1,5 +1,7 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
+import DigitalPurchase from './digitalPurchase';
+import CustomerAddress from './customerAddress';
 
 // Define the attributes for the CustomerDetails model
 interface CustomerDetailsAttributes {
@@ -47,6 +49,12 @@ class CustomerDetails
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     user: Association<Users, InstanceType<typeof Users>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    customerAddress: Association<CustomerAddress, InstanceType<typeof CustomerAddress>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
   };
 
   /**
@@ -59,6 +67,22 @@ class CustomerDetails
       this.belongsTo(models.Users, {
         foreignKey: 'customer_id',
         as: 'user',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('CustomerAddress')) {
+      this.hasMany(models.CustomerAddress, {
+        foreignKey: 'customer_id',
+        sourceKey: 'customer_id',
+        as: 'customerAddress',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('DigitalPurchase')) {
+      this.hasMany(models.DigitalPurchase, {
+        foreignKey: 'customer_id',
+        sourceKey: 'customer_id',
+        as: 'digitalPurchase',
       });
     }
   }
@@ -118,6 +142,7 @@ const CustomerDetailsModel = (sequelize: Sequelize): typeof CustomerDetails => {
         type: DataTypes.DATE,
         allowNull: true,
         defaultValue: DataTypes.NOW,
+        onUpdate: DataTypes.NOW as any,
         comment: 'Record last update timestamp',
       },
     },

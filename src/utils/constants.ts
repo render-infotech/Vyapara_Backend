@@ -67,3 +67,85 @@ export const predefinedRoles = {
     can_modify: 1,
   },
 };
+
+export const predefinedMaterials = {
+  Gold: {
+    id: 1,
+    name: 'Gold',
+    can_modify: 0,
+  },
+  Silver: {
+    id: 2,
+    name: 'Silver',
+    can_modify: 0,
+  },
+};
+
+export const predefinedTransactionType = {
+  Buy: {
+    id: 1,
+    name: 'Buy',
+    can_modify: 0,
+  },
+  Deposit: {
+    id: 2,
+    name: 'Deposit',
+    can_modify: 0,
+  },
+  Redeem: {
+    id: 3,
+    name: 'Redeem',
+    can_modify: 0,
+  },
+};
+
+export const predefinedTransactionStatus = {
+  Pending: {
+    id: 1,
+    name: 'Pending',
+    can_modify: 0,
+  },
+  Completed: {
+    id: 2,
+    name: 'Completed',
+    can_modify: 0,
+  },
+  Failed: {
+    id: 3,
+    name: 'Failed',
+    can_modify: 0,
+  },
+  Cancelled: {
+    id: 4,
+    name: 'Cancelled',
+    can_modify: 0,
+  },
+  Refunded: {
+    id: 5,
+    name: 'Refunded',
+    can_modify: 0,
+  },
+};
+
+export const predefinedPaymentType = {
+  UPI: {
+    id: 1,
+    name: 'UPI',
+    can_modify: 0,
+  },
+  Credit_Card: {
+    id: 2,
+    name: 'Credit_Card',
+    can_modify: 0,
+  },
+  Debit_Card: {
+    id: 3,
+    name: 'Debit_Card',
+    can_modify: 0,
+  },
+  Net_Banking: {
+    id: 4,
+    name: 'Net_Banking',
+    can_modify: 0,
+  },
+};

@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS `users` (
 
 -- Created new table for user details - by Shubham
 CREATE TABLE IF NOT EXISTS `customer_details` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the customer details record',
-  `customer_id` BIGINT NOT NULL COMMENT 'Reference to the user this record belongs to',
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the customer details record(unique for one-to-one relation)',
+  `customer_id` BIGINT NOT NULL UNIQUE COMMENT 'Reference to the user this record belongs to',
     `customer_code` VARCHAR(20) NOT NULL UNIQUE COMMENT 'Unique formatted customer code (e.g., CUS100001)',
   `nominee_name` VARCHAR(100) DEFAULT NULL COMMENT 'Full name of the nominee',
   `nominee_phone_country_code` VARCHAR(10) DEFAULT NULL COMMENT 'The phone country code of the nominee (IN, US, etc)',
@@ -78,7 +78,7 @@ COMMENT='Stores all saved addresses of customers (Home, Work, etc)';
 -- Created new table for vendor details - by Shubham
 CREATE TABLE IF NOT EXISTS `vendor_details` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the vendor details record',
-  `vendor_id` BIGINT NOT NULL COMMENT 'Reference to the user this vendor belongs to',
+  `vendor_id` BIGINT NOT NULL UNIQUE COMMENT 'Reference to the user this vendor belongs to',
   `vendor_code` VARCHAR(50) NOT NULL UNIQUE COMMENT 'Unique code of the vendor, auto-generated',
   `business_name` VARCHAR(150) DEFAULT NULL COMMENT 'Business name of the vendor',
   `address_line` TEXT DEFAULT NULL COMMENT 'Street address or shop location',
@@ -103,4 +103,33 @@ CREATE TABLE IF NOT EXISTS `vendor_details` (
     FOREIGN KEY (`vendor_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Stores detailed information about vendors';
+
+-- Created new table for digital purchases - by Shubham
+CREATE TABLE IF NOT EXISTS `digital_purchase` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the purchase',
+  `customer_id` BIGINT NOT NULL COMMENT 'Foreign key of the customer who made the purchase',
+  `transaction_type_id` INT NOT NULL DEFAULT 1 COMMENT 'Transaction type (1 = Buy, 2 = Deposit, 3 = Redeem)',
+  `purchase_code` VARCHAR(100) NOT NULL UNIQUE COMMENT 'Unique purchase identifier (e.g., DP20251013-001)',
+  `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
+  `amount` DECIMAL(15,2) NOT NULL COMMENT 'Base amount entered by customer (excluding taxes)',
+  `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram at purchase time',
+  `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated = amount / price_per_gram',
+  `tax_percentage` DECIMAL(5,2) NOT NULL DEFAULT 18.0 COMMENT 'Applicable tax percentage (e.g., GST)',
+  `tax_amount` DECIMAL(15,2) NOT NULL COMMENT 'Calculated tax amount',
+  `service_charge` DECIMAL(15,2) DEFAULT 0.0 COMMENT 'Platform or service charge (if any)',
+  `commission_percentage` DECIMAL(5,2) DEFAULT 1.0 COMMENT 'Commission percentage applied by platform',
+  `commission_amount` DECIMAL(15,2) DEFAULT NULL COMMENT 'Calculated commission amount',
+  `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax, commission, and service charge',
+  `payment_type_id` INT NOT NULL COMMENT 'Payment type (1 = UPI, 2 = Credit Card, 3 = Debit Card, 4 = Net Banking)',
+  `purchase_status` INT NOT NULL DEFAULT 1 COMMENT 'Purchase status (1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded)',
+  `rate_timestamp` DATETIME DEFAULT NULL COMMENT 'Timestamp when the rate was fetched',
+  `remarks` TEXT DEFAULT NULL COMMENT 'Optional remarks or notes about the transaction',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_digital_purchase_customer`
+    FOREIGN KEY (`customer_id`) REFERENCES `customer_details`(`customer_id`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB
+COMMENT='Digital gold/silver purchase records table';
 
