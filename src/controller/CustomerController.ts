@@ -221,10 +221,7 @@ export default class CustomersController {
     } else {
       try {
         const customerWhere: any = {
-          id: requestData?.customer_id,
-          role_id: predefinedRoles.User.id,
-          is_deactivated: 0,
-          status: 1,
+          customer_id: requestData?.customer_id,
         };
         const recordExists = await this.customerDetails.findOne({ where: customerWhere });
         if (!recordExists) {
