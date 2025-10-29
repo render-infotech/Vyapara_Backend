@@ -381,7 +381,6 @@ export default class CustomersController {
       'city',
       'address_line_1',
       'pincode',
-      'geo_location',
     ];
     const missingFields = mandatoryFields.filter((field) => !requestData[field]);
     let responseData: typeof prepareJSONResponse = {};
@@ -394,8 +393,6 @@ export default class CustomersController {
         const userWhere: any = {
           id: requestData.customer_id,
           role_id: predefinedRoles.User.id,
-          // is_deactivated: 0,
-          // status: 1,
         };
         const recordExists = await this.users.findOne({
           where: userWhere,
