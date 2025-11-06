@@ -5,37 +5,37 @@ import { predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import SqlError from '../errors/sqlError';
 import { prepareJSONResponse, generatePassword } from '../utils/utils';
-import Users from '../models/users';
-import VendorDetails from '../models/vendorDetails';
-import CustomerDetails from '../models/customerDetails';
+import UsersModel from '../models/users';
+import VendorDetailsModel from '../models/vendorDetails';
+import CustomerDetailsModel from '../models/customerDetails';
 import { removeS3File, singleImageUpload } from '../utils/s3uploads';
 
 export default class VendorsController {
   // @ts-ignore
-  private users: Users;
+  private usersModel: UsersModel;
 
   // @ts-ignore
-  private vendorDetails: VendorDetails;
+  private vendorDetailsModel: VendorDetailsModel;
 
   // @ts-ignore
-  private customerDetails: CustomerDetails;
+  private customerDetailsModel: CustomerDetailsModel;
 
   constructor(
     // @ts-ignore
-    users: Users,
+    usersModel: UsersModel,
     // @ts-ignore
-    vendorDetails: VendorDetails,
+    vendorDetailsModel: VendorDetailsModel,
     // @ts-ignore
-    customerDetails: CustomerDetails,
+    customerDetailsModel: CustomerDetailsModel,
   ) {
-    this.users = users;
-    this.vendorDetails = vendorDetails;
-    this.customerDetails = customerDetails;
+    this.usersModel = usersModel;
+    this.vendorDetailsModel = vendorDetailsModel;
+    this.customerDetailsModel = customerDetailsModel;
   }
 
   async emailExists(email) {
     try {
-      const user = await this.users.findOne({
+      const user = await this.usersModel.findOne({
         attributes: ['id', 'email'],
         where: {
           email,
@@ -51,7 +51,7 @@ export default class VendorsController {
 
   async createUser(data) {
     try {
-      const user = await this.users.create(data);
+      const user = await this.usersModel.create(data);
       return user;
     } catch (error) {
       logger.error('Error Exception in createUser for vendor.', error, data);
@@ -61,7 +61,7 @@ export default class VendorsController {
 
   async createVendor(data: any) {
     try {
-      const vendorDetails = await this.vendorDetails.create(data);
+      const vendorDetails = await this.vendorDetailsModel.create(data);
       return vendorDetails;
     } catch (error) {
       logger.error('Error Exception in createVendor.', error, data);
@@ -71,7 +71,7 @@ export default class VendorsController {
 
   // eslint-disable-next-line class-methods-use-this
   async getVendors(req: Request, res: Response) {
-    const requestData = req.query;
+    const requestBody = req.query;
     let responseData: typeof prepareJSONResponse = {};
 
     try {
@@ -79,17 +79,17 @@ export default class VendorsController {
         status: 1,
         role_id: predefinedRoles?.Vendor?.id,
       };
-      if (requestData.vendor_id) {
-        userWhere.id = requestData.vendor_id;
+      if (requestBody.vendor_id) {
+        userWhere.id = requestBody.vendor_id;
       }
 
-      const vendorWhere: any = { is_complete: 1 };
+      const vendorWhere: any = {};
 
-      const vendorsRecords = await this.vendorDetails.findAll({
+      const vendorsRecords = await this.vendorDetailsModel.findAll({
         where: vendorWhere,
         include: [
           {
-            model: this.users,
+            model: this.usersModel,
             as: 'user',
             where: userWhere,
             required: true,
@@ -154,7 +154,7 @@ export default class VendorsController {
         );
 
         let allVendorsData: any;
-        if (requestData.vendor_id) {
+        if (requestBody.vendor_id) {
           allVendorsData = mappedVendorData[0];
         } else {
           allVendorsData = mappedVendorData;
@@ -166,7 +166,7 @@ export default class VendorsController {
       logger.error('getVendors - Error retrieving Vendor data.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`getVendors - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`getVendors - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -188,8 +188,8 @@ export default class VendorsController {
     } catch (error) {
       logger.error('Error in uploading image for registerVendor', error);
     }
-    const requestData = req.body;
-    requestData.profile_pic = fileLocation;
+    const requestBody = req.body;
+    requestBody.profile_pic = fileLocation;
     const userAttributes = ['first_name', 'email', 'phone_country_code', 'phone_code', 'phone'];
     const initialVendorAttributes = [
       'business_name',
@@ -212,11 +212,11 @@ export default class VendorsController {
       'description',
     ];
     const mandatoryFields = [...userAttributes, ...initialVendorAttributes];
-    if (Number(requestData?.is_gst_registered) === 1) {
+    if (Number(requestBody?.is_gst_registered) === 1) {
       mandatoryFields.push('gst_number');
     }
     const missingFields = mandatoryFields.filter(
-      (field) => requestData[field] === undefined || requestData[field] === null || requestData[field] === '',
+      (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
     );
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -227,42 +227,42 @@ export default class VendorsController {
     } else {
       try {
         // Check if this user already exists
-        const userExists = await this.emailExists(requestData.email);
+        const userExists = await this.emailExists(requestBody.email);
         if (userExists) {
           responseData = prepareJSONResponse({}, 'User with this email already exists', statusCodes.BAD_REQUEST);
-          logger.info(`registerVendor: User with email ${requestData.email} already exists`);
+          logger.info(`registerVendor: User with email ${requestBody.email} already exists`);
         } else {
           const generatedPassword = generatePassword();
 
-          logger.info(`registerVendor Password: ${JSON.stringify(requestData)} - ${generatedPassword}`);
+          logger.info(`registerVendor Password: ${JSON.stringify(requestBody)} - ${generatedPassword}`);
 
-          requestData.password = await bcrypt.hash(generatedPassword, 10);
+          requestBody.password = await bcrypt.hash(generatedPassword, 10);
 
           const newUser = await this.createUser({
-            first_name: requestData.first_name,
-            last_name: requestData.last_name || '',
-            email: requestData.email,
-            password: requestData.password,
-            dob: requestData.dob || null,
-            gender: requestData.gender || 1,
-            phone_country_code: requestData?.phone_country_code || '',
-            phone_code: requestData?.phone_code || '',
-            phone: requestData?.phone || '',
+            first_name: requestBody.first_name,
+            last_name: requestBody.last_name || '',
+            email: requestBody.email,
+            password: requestBody.password,
+            dob: requestBody.dob || null,
+            gender: requestBody.gender || 1,
+            phone_country_code: requestBody?.phone_country_code || '',
+            phone_code: requestBody?.phone_code || '',
+            phone: requestBody?.phone || '',
             role_id: predefinedRoles?.Vendor?.id,
-            profile_pic: requestData.profile_pic,
+            profile_pic: requestBody.profile_pic,
           });
 
           if (!newUser) {
-            logger.info(`registerVendor: Failed to create user for email ${requestData.email}`);
-            throw new Error(`User creation failed for ${requestData.email}`);
+            logger.info(`registerVendor: Failed to create user for email ${requestBody.email}`);
+            throw new Error(`User creation failed for ${requestBody.email}`);
           }
 
           const vendorFields = {};
           vendorAttributes.forEach((acc) => {
-            vendorFields[acc] = requestData[acc] ?? null;
+            vendorFields[acc] = requestBody[acc] ?? null;
           });
 
-          const lastVendor = await this.vendorDetails.findOne({
+          const lastVendor = await this.vendorDetailsModel.findOne({
             order: [['id', 'DESC']],
           });
           let nextNumber = 100001;
@@ -276,7 +276,7 @@ export default class VendorsController {
           vendorFields.vendor_id = newUser.toJSON().id;
           // @ts-ignore
           vendorFields.is_complete = 0;
-          const newVendor = await this.vendorDetails.create(vendorFields);
+          const newVendor = await this.vendorDetailsModel.create(vendorFields);
 
           if (!newVendor) {
             logger.info(`registerVendor: Failed to create vendor details for vendor_id ${newUser.toJSON().id}`);
@@ -292,7 +292,7 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `registerVendor Vendor Registered successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `registerVendor Vendor Registered successfully, Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
@@ -317,7 +317,7 @@ export default class VendorsController {
     } catch (error) {
       logger.error('Error in uploading image for updateVendor', error);
     }
-    const requestData = req.body;
+    const requestBody = req.body;
     const userAttributes = ['vendor_id', 'first_name', 'email', 'phone_country_code', 'phone_code', 'phone'];
     const initialVendorAttributes = [
       'business_name',
@@ -341,11 +341,11 @@ export default class VendorsController {
     ];
 
     const mandatoryFields = [...userAttributes, ...initialVendorAttributes];
-    if (Number(requestData?.is_gst_registered) === 1) {
+    if (Number(requestBody?.is_gst_registered) === 1) {
       mandatoryFields.push('gst_number');
     }
     const missingFields = mandatoryFields.filter(
-      (field) => requestData[field] === undefined || requestData[field] === null || requestData[field] === '',
+      (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
     );
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -355,8 +355,8 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.users.findOne({
-          where: { id: requestData.vendor_id, role_id: predefinedRoles?.Vendor?.id },
+        const recordExists = await this.usersModel.findOne({
+          where: { id: requestBody.vendor_id, role_id: predefinedRoles?.Vendor?.id },
         });
         responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
         if (recordExists) {
@@ -369,30 +369,30 @@ export default class VendorsController {
               logger.error('updateProfile - Error deleting old profile picture', error);
             }
           }
-          await this.users.update(
+          await this.usersModel.update(
             {
-              first_name: requestData.first_name,
-              last_name: requestData.last_name,
-              email: requestData.email,
-              dob: requestData.dob || null,
-              phone_country_code: requestData.phone_country_code,
-              phone_code: requestData.phone_code,
-              phone: requestData.phone,
+              first_name: requestBody.first_name,
+              last_name: requestBody.last_name,
+              email: requestBody.email,
+              dob: requestBody.dob || null,
+              phone_country_code: requestBody.phone_country_code,
+              phone_code: requestBody.phone_code,
+              phone: requestBody.phone,
               profile_pic: newProfilePic,
             },
-            { where: { id: requestData.vendor_id, role_id: predefinedRoles?.Vendor?.id } },
+            { where: { id: requestBody.vendor_id, role_id: predefinedRoles?.Vendor?.id } },
           );
 
-          let vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id: requestData.vendor_id } });
+          let vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id: requestBody.vendor_id } });
           if (!vendorRecord) {
             const vendorFields = {};
             vendorAttributes.forEach((acc) => {
-              vendorFields[acc] = requestData[acc] ?? null;
+              vendorFields[acc] = requestBody[acc] ?? null;
             });
             // @ts-ignore
             vendorFields.vendor_id = recordExists.id;
             let nextNumber = 100001;
-            const lastVendor = await this.vendorDetails.findOne({
+            const lastVendor = await this.vendorDetailsModel.findOne({
               order: [['id', 'DESC']],
             });
             if (lastVendor && lastVendor.vendor_code) {
@@ -401,12 +401,12 @@ export default class VendorsController {
             }
             // @ts-ignore
             vendorFields.vendor_code = `VND${nextNumber}`;
-            vendorRecord = await this.vendorDetails.create(vendorFields);
+            vendorRecord = await this.vendorDetailsModel.create(vendorFields);
             logger.info(`updateVendor - Created New vendor ${JSON.stringify(vendorRecord)}`);
           } else {
             vendorAttributes.forEach((acc) => {
-              if (requestData[acc] !== undefined) {
-                vendorRecord[acc] = requestData[acc] ?? vendorRecord[acc];
+              if (requestBody[acc] !== undefined) {
+                vendorRecord[acc] = requestBody[acc] ?? vendorRecord[acc];
               }
             });
             await vendorRecord.save();
@@ -419,15 +419,15 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`updateVendor - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`updateVendor - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddMaterial(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const mandatoryFields = ['vendor_id', 'name'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -435,15 +435,15 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.vendorDetails.findOne({
-          where: { vendor_id: requestData.vendor_id },
+        const recordExists = await this.vendorDetailsModel.findOne({
+          where: { vendor_id: requestBody.vendor_id },
         });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
           const materials = recordExists.materials || [];
 
-          const newMaterial = { id: uuidv4(), name: requestData?.name };
+          const newMaterial = { id: uuidv4(), name: requestBody?.name };
           const updatedMaterials = [...materials, newMaterial];
 
           const newData = await recordExists.update({ materials: updatedMaterials, is_complete: 1 });
@@ -455,13 +455,13 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorAddMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorUpdateMaterial(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const { vendor_id, material_id, name } = req.body;
     const mandatoryFields = ['vendor_id', 'material_id', 'name'];
     const missingFields = mandatoryFields.filter((field) => !req.body[field]);
@@ -472,7 +472,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const recordExists = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -493,13 +493,13 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorUpdateMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorUpdateMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeleteMaterial(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const { vendor_id, material_id } = req.body;
     const mandatoryFields = ['vendor_id', 'material_id'];
     const missingFields = mandatoryFields.filter((field) => !req.body[field]);
@@ -510,7 +510,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const recordExists = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -530,16 +530,16 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorDeleteMaterial - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorDeleteMaterial - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddPaymentMode(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const { vendor_id, mode } = req.body;
     const mandatoryFields = ['vendor_id', 'mode'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -547,7 +547,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -565,16 +565,16 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorAddPaymentMode - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddPaymentMode - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeletePaymentMode(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const { vendor_id, mode } = req.body;
     const mandatoryFields = ['vendor_id', 'mode'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -582,7 +582,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -602,18 +602,18 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `vendorDeletePaymentMode - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `vendorDeletePaymentMode - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorAddWorkingHour(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const { vendor_id, day, open, close, is_closed } = req.body;
     const mandatoryFields = ['vendor_id', 'day', 'open', 'close', 'is_closed'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestData[field] === undefined || requestData[field] === null,
+      (field) => requestBody[field] === undefined || requestBody[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -623,7 +623,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -639,17 +639,17 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`vendorAddWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`vendorAddWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorUpdateWorkingHour(req: Request, res: Response) {
-    const requestData = req.body;
-    const { vendor_id, hour_id, day, open, close, is_closed } = requestData;
+    const requestBody = req.body;
+    const { vendor_id, hour_id, day, open, close, is_closed } = requestBody;
     const mandatoryFields = ['vendor_id', 'hour_id', 'day', 'is_closed'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestData[field] === undefined || requestData[field] === null,
+      (field) => requestBody[field] === undefined || requestBody[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -659,7 +659,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -680,18 +680,18 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `vendorUpdateWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `vendorUpdateWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async vendorDeleteWorkingHour(req: Request, res: Response) {
-    const requestData = req.body;
-    const { vendor_id, hour_id } = requestData;
+    const requestBody = req.body;
+    const { vendor_id, hour_id } = requestBody;
     const mandatoryFields = ['vendor_id', 'hour_id'];
     const missingFields = mandatoryFields.filter(
-      (field) => requestData[field] === undefined || requestData[field] === null,
+      (field) => requestBody[field] === undefined || requestBody[field] === null,
     );
     let responseData: typeof prepareJSONResponse = {};
 
@@ -701,7 +701,7 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const vendorRecord = await this.vendorDetails.findOne({ where: { vendor_id } });
+        const vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
@@ -721,16 +721,16 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `vendorDeleteWorkingHour - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `vendorDeleteWorkingHour - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async reactivateVendor(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const mandatoryFields = ['vendor_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -739,12 +739,12 @@ export default class VendorsController {
     } else {
       try {
         const vendorWhere: any = {
-          id: requestData.vendor_id,
+          id: requestBody.vendor_id,
           role_id: predefinedRoles.Vendor.id,
           status: 1,
         };
 
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           where: vendorWhere,
         });
         responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
@@ -764,16 +764,16 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `reactivateVendor - Reactivate Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `reactivateVendor - Reactivate Vendor Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async deactivateVendor(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const mandatoryFields = ['vendor_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -782,11 +782,11 @@ export default class VendorsController {
     } else {
       try {
         const vendorWhere: any = {
-          id: requestData.vendor_id,
+          id: requestBody.vendor_id,
           role_id: predefinedRoles.Vendor.id,
           status: 1,
         };
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           where: vendorWhere,
         });
         responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
@@ -806,16 +806,16 @@ export default class VendorsController {
       }
     }
     logger.info(
-      `deactivateVendor - Deactivate Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+      `deactivateVendor - Deactivate Vendor Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async deleteVendor(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     const mandatoryFields = ['vendor_id'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -824,11 +824,11 @@ export default class VendorsController {
     } else {
       try {
         const vendorWhere: any = {
-          id: requestData.vendor_id,
+          id: requestBody.vendor_id,
           role_id: predefinedRoles.Vendor.id,
           is_deactivated: 0,
         };
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           where: vendorWhere,
         });
         responseData = prepareJSONResponse({}, 'Vendor does not exists.', statusCodes.BAD_REQUEST);
@@ -844,7 +844,7 @@ export default class VendorsController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`Delete Vendor Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`Delete Vendor Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }
