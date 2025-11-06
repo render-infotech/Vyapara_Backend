@@ -36,6 +36,7 @@ functions:
   - ${file(./src/routes/users/v1/users.yml)}
   - ${file(./src/routes/customers/v1/customers.yml)}
   - ${file(./src/routes/vendors/v1/vendors.yml)}
+  - ${file(./src/routes/systemSettings/v1/material_rates/material_rates.yml)}
 
 plugins:
   - serverless-offline

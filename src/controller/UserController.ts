@@ -5,44 +5,44 @@ import { predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger';
 import { prepareJSONResponse, createValidator, createFilterBody, generatePassword } from '../utils/utils';
 import SqlError from '../errors/sqlError';
-import Users from '../models/users';
-import CustomerDetails from '../models/customerDetails';
-import CustomerAddress from '../models/customerAddress';
-import VendorDetails from '../models/vendorDetails';
+import UsersModel from '../models/users';
+import CustomerDetailsModel from '../models/customerDetails';
+import CustomerAddressModel from '../models/customerAddress';
+import VendorDetailsModel from '../models/vendorDetails';
 import { removeS3File, singleImageUpload } from '../utils/s3uploads';
 
 export default class UsersController {
   // @ts-ignore
-  private users: Users;
+  private usersModel: UsersModel;
 
   // @ts-ignore
-  private customerDetails: CustomerDetails;
+  private customerDetailsModel: CustomerDetailsModel;
 
   // @ts-ignore
-  private customerAddress: CustomerAddress;
+  private customerAddressModel: CustomerAddressModel;
 
   // @ts-ignore
-  private vendorDetails: VendorDetails;
+  private vendorDetailsModel: VendorDetailsModel;
 
   constructor(
     // @ts-ignore
-    users: Users,
+    usersModel: UsersModel,
     // @ts-ignore
-    customerDetails: CustomerDetails,
+    customerDetailsModel: CustomerDetailsModel,
     // @ts-ignore
-    customerAddress: CustomerAddress,
+    customerAddressModel: CustomerAddressModel,
     // @ts-ignore
-    vendorDetails: VendorDetails,
+    vendorDetailsModel: VendorDetailsModel,
   ) {
-    this.users = users;
-    this.customerDetails = customerDetails;
-    this.customerAddress = customerAddress;
-    this.vendorDetails = vendorDetails;
+    this.usersModel = usersModel;
+    this.customerDetailsModel = customerDetailsModel;
+    this.customerAddressModel = customerAddressModel;
+    this.vendorDetailsModel = vendorDetailsModel;
   }
 
   async emailExists(email) {
     try {
-      const user = await this.users.findOne({
+      const user = await this.usersModel.findOne({
         attributes: ['id', 'email'],
         where: {
           email,
@@ -58,7 +58,7 @@ export default class UsersController {
 
   async createUser(data) {
     try {
-      const user = await this.users.create(data);
+      const user = await this.usersModel.create(data);
       return user;
     } catch (error) {
       logger.error('Error Exception in createUser.', error, data);
@@ -68,7 +68,7 @@ export default class UsersController {
 
   async createCustomer(data: any) {
     try {
-      const customerDetails = await this.customerDetails.create(data);
+      const customerDetails = await this.customerDetailsModel.create(data);
       return customerDetails;
     } catch (error) {
       logger.error('Error Exception in createCustomer.', error, data);
@@ -78,17 +78,17 @@ export default class UsersController {
 
   // eslint-disable-next-line class-methods-use-this
   async registerUser(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       const validateBody = ['first_name', 'email', 'password', 'confirm_password', 'is_agreed'];
-      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
+      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const { password, confirm_password } = requestData;
+        const { password, confirm_password } = requestBody;
         if (password !== confirm_password) {
           logger.info(
-            `registerUser Password and confirm password do not match Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+            `registerUser Password and confirm password do not match Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
           );
           responseData = prepareJSONResponse(
             {},
@@ -97,19 +97,19 @@ export default class UsersController {
           );
         } else {
           // Check if this user already exists
-          const userExists = await this.emailExists(requestData.email);
+          const userExists = await this.emailExists(requestBody.email);
           responseData = prepareJSONResponse({}, 'User with this email already exists', statusCodes.BAD_REQUEST);
           if (!userExists) {
-            if (requestData.password) {
-              requestData.password = await bcrypt.hash(requestData.password, 10);
+            if (requestBody.password) {
+              requestBody.password = await bcrypt.hash(requestBody.password, 10);
             }
             const newUser = await this.createUser({
-              first_name: requestData.first_name,
-              last_name: requestData.last_name,
-              email: requestData.email,
-              password: requestData.password,
-              dob: requestData.dob || null,
-              gender: requestData.gender || 1,
+              first_name: requestBody.first_name,
+              last_name: requestBody.last_name,
+              email: requestBody.email,
+              password: requestBody.password,
+              dob: requestBody.dob || null,
+              gender: requestBody.gender || 1,
             });
 
             const data = {
@@ -139,23 +139,23 @@ export default class UsersController {
       logger.error('registerUser - Error in User Registration.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`registerUser - Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`registerUser - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
   async loginUser(req: Request, res: Response) {
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       const validateBody = ['email', 'password'];
-      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
+      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const user = await this.users.findOne({
+        const user = await this.usersModel.findOne({
           attributes: ['id', 'first_name', 'last_name', 'email', 'password', 'role_id', 'status', 'is_deactivated'],
           where: {
-            email: requestData.email,
+            email: requestBody.email,
             is_deactivated: 0,
           },
         });
@@ -170,7 +170,7 @@ export default class UsersController {
               statusCodes.BAD_REQUEST,
             );
           } else {
-            const match = await bcrypt.compareSync(requestData.password, user.password);
+            const match = await bcrypt.compareSync(requestBody.password, user.password);
             if (match) {
               const data = {
                 first_name: user.toJSON().first_name,
@@ -181,8 +181,8 @@ export default class UsersController {
               setImmediate(async () => {
                 try {
                   // let location = {};
-                  // if (requestData.ip && requestData.ip !== '::1') {
-                  //   location = await getLocationFromIP(requestData.ip);
+                  // if (requestBody.ip && requestBody.ip !== '::1') {
+                  //   location = await getLocationFromIP(requestBody.ip);
                   //   if (!Array.isArray(location) && typeof location === 'object') {
                   //     location = JSON.stringify(location);
                   //   }
@@ -193,15 +193,15 @@ export default class UsersController {
                   // const userLog = await this.loginAuditLogsModel.create({
                   //   user_id: user.id,
                   //   user_name: `${data.first_name} ${data.last_name}`,
-                  //   ip_address: requestData.ip,
+                  //   ip_address: requestBody.ip,
                   //   user_agent: req.headers['user-agent'] ?? null,
                   //   location,
                   // });
                   // logger.info(
-                  //   `Login Audit log status for user ${user.id} with ip ${requestData.ip} - ${JSON.stringify(userLog)}`,
+                  //   `Login Audit log status for user ${user.id} with ip ${requestBody.ip} - ${JSON.stringify(userLog)}`,
                   // );
                 } catch (error) {
-                  logger.info(`Login Audit log failed for user ${user.id} with ip ${requestData.ip} - ${error}`);
+                  logger.info(`Login Audit log failed for user ${user.id} with ip ${requestBody.ip} - ${error}`);
                 }
               });
               const jwtData = {
@@ -212,7 +212,7 @@ export default class UsersController {
               const dataForUser = { user: data, token, expiresIn: 365 };
               responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
               logger.info(
-                `loginUser User Logged in successfully, Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`,
+                `loginUser User Logged in successfully, Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
               );
             }
           }
@@ -248,13 +248,13 @@ export default class UsersController {
 
       if (role_id === 10) {
         include.push({
-          model: this.customerDetails,
+          model: this.customerDetailsModel,
           as: 'customerDetails',
           where: customerWhere,
           required: false,
           include: [
             {
-              model: this.customerAddress,
+              model: this.customerAddressModel,
               as: 'customerAddress',
               required: false,
               where: addressWhere,
@@ -263,14 +263,14 @@ export default class UsersController {
         });
       } else if (role_id === 2) {
         include.push({
-          model: this.vendorDetails,
+          model: this.vendorDetailsModel,
           as: 'vendorDetails',
           required: false,
           where: vendorWhere,
         });
       }
 
-      const recordExists = await this.users.findOne({
+      const recordExists = await this.usersModel.findOne({
         where: userWhere,
         include,
       });
@@ -393,9 +393,9 @@ export default class UsersController {
     }
     // @ts-ignore
     const { userId } = req.user;
-    const requestData = req.body;
+    const requestBody = req.body;
     const mandatoryFields = ['first_name', 'last_name', 'email'];
-    const missingFields = mandatoryFields.filter((field) => !requestData[field]);
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
     if (missingFields.length > 0) {
@@ -407,7 +407,7 @@ export default class UsersController {
           id: userId,
           role_id: predefinedRoles.User.id,
         };
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           attributes: ['id', 'first_name', 'last_name', 'email', 'is_deactivated', 'status', 'profile_pic'],
           where: userWhere,
         });
@@ -431,15 +431,15 @@ export default class UsersController {
                 }
               }
 
-              const newData = await this.users.update(
+              const newData = await this.usersModel.update(
                 {
-                  first_name: requestData.first_name,
-                  last_name: requestData.last_name,
-                  email: requestData.email,
-                  dob: requestData.dob || recordExists?.dob,
-                  phone_country_code: requestData.phone_country_code || recordExists?.phone_country_code,
-                  phone_code: requestData.phone_code || recordExists?.phone_code,
-                  phone: requestData.phone || recordExists?.phone,
+                  first_name: requestBody.first_name,
+                  last_name: requestBody.last_name,
+                  email: requestBody.email,
+                  dob: requestBody.dob || recordExists?.dob,
+                  phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
+                  phone_code: requestBody.phone_code || recordExists?.phone_code,
+                  phone: requestBody.phone || recordExists?.phone,
                   profile_pic: newProfilePic,
                 },
                 { where: { id: userId, role_id: predefinedRoles?.User?.id } },
@@ -454,7 +454,7 @@ export default class UsersController {
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`updateProfile User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`updateProfile User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -462,17 +462,17 @@ export default class UsersController {
   async forgotPassword(req: Request, res: Response) {
     // @ts-ignore
     const emailEnabled = process.env.EMAIL_ENABLED === 'true' || process.env.EMAIL_ENABLED === true;
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       const validateBody = ['email'];
-      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
+      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const user = await this.users.findOne({
+        const user = await this.usersModel.findOne({
           attributes: ['id', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
           where: {
-            email: requestData.email,
+            email: requestBody.email,
             is_deactivated: 0,
           },
         });
@@ -488,14 +488,14 @@ export default class UsersController {
               );
             } else {
               const generatedPassword = generatePassword();
-              logger.info(`forgotPassword Password: ${JSON.stringify(requestData)} - ${generatedPassword}`);
-              requestData.password = await bcrypt.hash(generatedPassword, 10);
-              await user.update({ password: requestData.password });
+              logger.info(`forgotPassword Password: ${JSON.stringify(requestBody)} - ${generatedPassword}`);
+              requestBody.password = await bcrypt.hash(generatedPassword, 10);
+              await user.update({ password: requestBody.password });
               // const emailBody = resetPassword(generatedPassword);
-              // logger.info(`forgotPassword Email: ${JSON.stringify(requestData)} - ${emailBody}`);
+              // logger.info(`forgotPassword Email: ${JSON.stringify(requestBody)} - ${emailBody}`);
               if (emailEnabled) {
                 // const emailStatus = await sendEmail(user.email, emailBody, 'Password Reset');
-                // logger.info(`User Forgotpassword Email Status: ${requestData.email} ${JSON.stringify(emailStatus)}`);
+                // logger.info(`User Forgotpassword Email Status: ${requestBody.email} ${JSON.stringify(emailStatus)}`);
               }
               responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
             }
@@ -506,7 +506,7 @@ export default class UsersController {
       logger.error('forgotPassword - Error Exception in User Forgot password.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`forgotPassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`forgotPassword User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -514,11 +514,11 @@ export default class UsersController {
   async changePassword(req: Request, res: Response) {
     // @ts-ignore
     const { userId } = req.user;
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       const validateBody = ['old_password', 'new_password', 'confirm_password'];
-      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestData, validateBody));
+      const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus && userId) {
         responseData = prepareJSONResponse(
@@ -526,8 +526,8 @@ export default class UsersController {
           'New Password and Confirm Password do not match.',
           statusCodes.BAD_REQUEST,
         );
-        if (requestData.new_password === requestData.confirm_password) {
-          const user = await this.users.findOne({
+        if (requestBody.new_password === requestBody.confirm_password) {
+          const user = await this.usersModel.findOne({
             attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
             where: {
               id: userId,
@@ -543,11 +543,11 @@ export default class UsersController {
                   statusCodes.BAD_REQUEST,
                 );
               } else {
-                const match = await bcrypt.compareSync(requestData.old_password, user.password);
+                const match = await bcrypt.compareSync(requestBody.old_password, user.password);
                 responseData = prepareJSONResponse({}, 'Invalid old password.', statusCodes.BAD_REQUEST);
                 if (match) {
-                  requestData.enc_password = await bcrypt.hash(requestData.new_password, 10);
-                  await user.update({ password: requestData.enc_password });
+                  requestBody.enc_password = await bcrypt.hash(requestBody.new_password, 10);
+                  await user.update({ password: requestBody.enc_password });
                   responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
                 }
               }
@@ -561,7 +561,7 @@ export default class UsersController {
       logger.error('changePassword - Error Exception in User Change password.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`changePassword User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`changePassword User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -569,7 +569,7 @@ export default class UsersController {
   async enableTwoFactor(req: Request, res: Response) {
     // @ts-ignore
     const { userId } = req.user;
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       if (userId) {
@@ -577,7 +577,7 @@ export default class UsersController {
           id: userId,
           role_id: predefinedRoles.User.id,
         };
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
           where: userWhere,
         });
@@ -604,7 +604,7 @@ export default class UsersController {
       logger.error('enableTwoFactor - Error Exception in User enableTwoFactor', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`enableTwoFactor User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`enableTwoFactor User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -612,7 +612,7 @@ export default class UsersController {
   async disableTwoFactor(req: Request, res: Response) {
     // @ts-ignore
     const { userId } = req.user;
-    const requestData = req.body;
+    const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
       if (userId) {
@@ -620,7 +620,7 @@ export default class UsersController {
           id: userId,
           role_id: predefinedRoles.User.id,
         };
-        const recordExists = await this.users.findOne({
+        const recordExists = await this.usersModel.findOne({
           attributes: ['id', 'password', 'first_name', 'last_name', 'email', 'role_id', 'status', 'is_deactivated'],
           where: userWhere,
         });
@@ -647,7 +647,7 @@ export default class UsersController {
       logger.error('disableTwoFactor - Error Exception in User disableTwoFactor', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
-    logger.info(`disableTwoFactor User Req and Res: ${JSON.stringify(requestData)} - ${JSON.stringify(responseData)}`);
+    logger.info(`disableTwoFactor User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }

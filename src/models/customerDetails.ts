@@ -1,6 +1,5 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
-import DigitalPurchase from './digitalPurchase';
 import CustomerAddress from './customerAddress';
 
 // Define the attributes for the CustomerDetails model
@@ -52,9 +51,6 @@ class CustomerDetails
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerAddress: Association<CustomerAddress, InstanceType<typeof CustomerAddress>>;
-    // @ts-ignore
-    // eslint-disable-next-line no-use-before-define
-    digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
   };
 
   /**
@@ -75,14 +71,6 @@ class CustomerDetails
         foreignKey: 'customer_id',
         sourceKey: 'customer_id',
         as: 'customerAddress',
-      });
-    }
-    // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('DigitalPurchase')) {
-      this.hasMany(models.DigitalPurchase, {
-        foreignKey: 'customer_id',
-        sourceKey: 'customer_id',
-        as: 'digitalPurchase',
       });
     }
   }

@@ -16,5 +16,15 @@ export default (customersController: CustomerController) => {
   router.post('/enable-login', Authentication(), customersController.reactivateCustomer.bind(customersController));
   router.post('/disable-login', Authentication(), customersController.deactivateCustomer.bind(customersController));
   router.post('/delete', Authentication(), customersController.deleteCustomer.bind(customersController));
+  router.post(
+    '/digital-purchase/create',
+    Authentication(),
+    customersController.createDigitalPurchase.bind(customersController),
+  );
+  router.get(
+    '/digital-purchase/get',
+    Authentication(),
+    customersController.getDigitalPurchase.bind(customersController),
+  );
   return router;
 };

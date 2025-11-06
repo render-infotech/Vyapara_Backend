@@ -2,6 +2,7 @@ import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import CustomerDetails from './customerDetails';
 import CustomerAddress from './customerAddress';
 import VendorDetails from './vendorDetails';
+import DigitalPurchase from './digitalPurchase';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -85,6 +86,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     vendorDetails: Association<VendorDetails, InstanceType<typeof VendorDetails>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
   };
 
   /**
@@ -104,6 +108,12 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('VendorDetails')) {
       this.hasOne(models.VendorDetails, { foreignKey: 'vendor_id', as: 'vendorDetails' });
+    }
+    if (models.hasOwnProperty('DigitalPurchase')) {
+      this.hasMany(models.DigitalPurchase, {
+        foreignKey: 'customer_id',
+        as: 'digitalPurchase',
+      });
     }
   }
 }

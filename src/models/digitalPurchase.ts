@@ -1,12 +1,12 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import crypto from 'crypto';
-import CustomerDetails from './customerDetails';
+import Users from './users';
 
 // Define attributes for the CustomerOnlineTransactions model
 interface DigitalPurchaseAttributes {
   id: number;
   customer_id: number;
-  transaction_type_id: number; //  1 - Buy (default), 2 - Deposit, 3 - Redeem
+  transaction_type_id: number; // 1 = Buy, 2 = Deposit, 3 = Redeem
   purchase_code: string;
   material_id: number; // 1 = Gold, 2 = Silver
   amount: number;
@@ -14,12 +14,10 @@ interface DigitalPurchaseAttributes {
   grams_purchased: number;
   tax_percentage: number;
   tax_amount?: number;
-  service_charge?: number;
-  commission_percentage?: number;
-  commission_amount?: number;
+  convenience_fee_rate?: number; // % value
+  convenience_fee: number; // actual fee amount
   total_amount: number;
-  payment_type_id: number; // Payment type (1 = UPI, 2 = Credit Card, 3 = Debit Card, 4 = Net Banking)
-  purchase_status: number; // Purchase status (1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded)
+  purchase_status: number; // 1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded
   rate_timestamp?: Date;
   remarks?: string;
   created_at: Date;
@@ -54,15 +52,11 @@ class DigitalPurchase
 
   public tax_amount?: number;
 
-  public service_charge?: number;
+  public convenience_fee_rate?: number;
 
-  public commission_percentage?: number;
-
-  public commission_amount?: number;
+  public convenience_fee!: number;
 
   public total_amount!: number;
-
-  public payment_type_id!: number;
 
   public purchase_status!: number;
 
@@ -80,7 +74,7 @@ class DigitalPurchase
   public static associations: {
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
-    customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
+    user: Association<Users, InstanceType<typeof Users>>;
   };
 
   /**
@@ -90,11 +84,11 @@ class DigitalPurchase
    */
   public static associate(models: any) {
     // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('CustomerDetails')) {
-      this.belongsTo(models.CustomerDetails, {
+    if (models.hasOwnProperty('User')) {
+      this.belongsTo(models.User, {
         foreignKey: 'customer_id',
-        targetKey: 'customer_id',
-        as: 'customerDetails',
+        targetKey: 'id',
+        as: 'user',
       });
     }
   }
@@ -158,32 +152,22 @@ const DigitalPurchaseModel = (sequelize: Sequelize): typeof DigitalPurchase => {
         allowNull: false,
         comment: 'Calculated tax amount',
       },
-      service_charge: {
-        type: DataTypes.DECIMAL(15, 2),
-        allowNull: true,
-        defaultValue: 0.0,
-        comment: 'Platform or service charge (if any)',
-      },
-      commission_percentage: {
+      convenience_fee_rate: {
         type: DataTypes.DECIMAL(5, 2),
         allowNull: true,
-        defaultValue: 1.0,
-        comment: 'Commission percentage applied by platform',
+        defaultValue: 0.0,
+        comment: 'Convenience fee rate (%)',
       },
-      commission_amount: {
+      convenience_fee: {
         type: DataTypes.DECIMAL(15, 2),
-        allowNull: true,
-        comment: 'Calculated commission amount',
+        allowNull: false,
+        defaultValue: 0.0,
+        comment: 'Convenience fee amount',
       },
       total_amount: {
         type: DataTypes.DECIMAL(15, 2),
         allowNull: false,
         comment: 'Total amount including tax, commission, and service charge',
-      },
-      payment_type_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        comment: 'Payment type (1 = UPI, 2 = Credit Card, 3 = Debit Card, 4 = Net Banking)',
       },
       purchase_status: {
         type: DataTypes.INTEGER,

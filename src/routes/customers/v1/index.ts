@@ -16,10 +16,11 @@ const DigitalPurchase = DigitalPurchaseModel(sequelize);
 Users.associate({
   CustomerDetails,
   CustomerAddress,
+  DigitalPurchase,
 });
-CustomerDetails.associate({ Users, CustomerAddress, DigitalPurchase });
+CustomerDetails.associate({ Users, CustomerAddress });
 CustomerAddress.associate({ Users, CustomerDetails });
-DigitalPurchase.associate({ CustomerDetails });
+DigitalPurchase.associate({ Users });
 
 const CustomersController = new CustomerController(Users, CustomerDetails, CustomerAddress, DigitalPurchase);
 

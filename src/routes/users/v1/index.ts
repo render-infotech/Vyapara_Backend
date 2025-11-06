@@ -6,21 +6,25 @@ import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
 import VendorDetailsModel from '../../../models/vendorDetails';
+import DigitalPurchaseModel from '../../../models/digitalPurchase';
 import ControllerRoutes from './users';
 
 const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
 const CustomerAddress = CustomerAddressModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
+const DigitalPurchase = DigitalPurchaseModel(sequelize);
 
 Users.associate({
   CustomerDetails,
   CustomerAddress,
   VendorDetails,
+  DigitalPurchase,
 });
-CustomerDetails.associate({ Users, CustomerAddress });
+CustomerDetails.associate({ Users, CustomerAddress, DigitalPurchase });
 CustomerAddress.associate({ Users, CustomerDetails });
 VendorDetails.associate({ Users });
+DigitalPurchase.associate({ Users, CustomerDetails });
 
 const UsersController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails);
 

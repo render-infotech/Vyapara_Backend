@@ -104,6 +104,24 @@ CREATE TABLE IF NOT EXISTS `vendor_details` (
     ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Stores detailed information about vendors';
 
+-- Created new table to add live price by admin - by Shubham
+CREATE TABLE IF NOT EXISTS `material_rate` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the metal rate',
+  `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
+  `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram',
+  `change_percentage` DECIMAL(6,2) NOT NULL DEFAULT 0.00 COMMENT 'Percentage change compared to previous latest price',
+  `is_latest` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Flag to mark latest entry per material_id',
+  `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = Active, 0 = Inactive',
+  `remarks` TEXT DEFAULT NULL COMMENT 'Admin remarks or notes about the price update',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`),
+  INDEX `idx_material_latest` (`material_id`, `is_latest`)
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COMMENT='Stores gold/silver metal price per gram with change history tracking';
+
+
 -- Created new table for digital purchases - by Shubham
 CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the purchase',
@@ -113,23 +131,22 @@ CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
   `amount` DECIMAL(15,2) NOT NULL COMMENT 'Base amount entered by customer (excluding taxes)',
   `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram at purchase time',
-  `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated = amount / price_per_gram',
+  `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated',
   `tax_percentage` DECIMAL(5,2) NOT NULL DEFAULT 18.0 COMMENT 'Applicable tax percentage (e.g., GST)',
   `tax_amount` DECIMAL(15,2) NOT NULL COMMENT 'Calculated tax amount',
-  `service_charge` DECIMAL(15,2) DEFAULT 0.0 COMMENT 'Platform or service charge (if any)',
-  `commission_percentage` DECIMAL(5,2) DEFAULT 1.0 COMMENT 'Commission percentage applied by platform',
-  `commission_amount` DECIMAL(15,2) DEFAULT NULL COMMENT 'Calculated commission amount',
-  `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax, commission, and service charge',
-  `payment_type_id` INT NOT NULL COMMENT 'Payment type (1 = UPI, 2 = Credit Card, 3 = Debit Card, 4 = Net Banking)',
+  `convenience_fee_rate` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Convenience fee rate (%)',
+  `convenience_fee` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Convenience fee amount',
+  `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax and convenience fee',
   `purchase_status` INT NOT NULL DEFAULT 1 COMMENT 'Purchase status (1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded)',
   `rate_timestamp` DATETIME DEFAULT NULL COMMENT 'Timestamp when the rate was fetched',
   `remarks` TEXT DEFAULT NULL COMMENT 'Optional remarks or notes about the transaction',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
   PRIMARY KEY (`id`),
-  CONSTRAINT `fk_digital_purchase_customer`
-    FOREIGN KEY (`customer_id`) REFERENCES `customer_details`(`customer_id`)
+  CONSTRAINT `fk_digital_purchase_user`
+    FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB
 COMMENT='Digital gold/silver purchase records table';
+
 
