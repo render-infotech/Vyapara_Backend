@@ -1,4 +1,3 @@
-// eslint.config.mjs
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import eslintPluginImport from 'eslint-plugin-import';
@@ -23,25 +22,20 @@ export default [
       '@typescript-eslint': tsPlugin,
       import: eslintPluginImport,
       prettier: eslintPluginPrettier,
-      'eslint-comments': eslintCommentsPlugin, // ✅ use imported plugin
+      'eslint-comments': eslintCommentsPlugin,
     },
     rules: {
-      // Prettier + style
       'prettier/prettier': ['error', { singleQuote: true }],
       quotes: ['error', 'single'],
       'no-console': 'warn',
       'no-param-reassign': 'off',
       'max-len': ['warn', { code: 150, ignoreComments: true, ignoreUrls: true }],
-
-      // TS-specific
       camelcase: 'off',
-      'no-unused-vars': 'off', // disable base rule
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }], // ignore unused args/vars starting with _
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-await-in-loop': 'off',
       'no-shadow': 'off',
       '@typescript-eslint/no-shadow': 'error',
-
-      // Import rules
       'import/extensions': 'off',
       'import/no-import-module-exports': 'off',
       'import/no-extraneous-dependencies': [
@@ -54,15 +48,13 @@ export default [
       ],
       'import/no-unresolved': ['error', { commonjs: true, caseSensitive: true }],
       'import/no-named-as-default': 'off',
-
-      // Handle unused eslint-disable warnings
       'eslint-comments/no-unused-disable': 'off',
     },
     settings: {
       'import/resolver': {
         typescript: {
-          alwaysTryTypes: true,
           project: ['./tsconfig.json'],
+          alwaysTryTypes: true,
         },
         node: {
           extensions: ['.js', '.ts'],

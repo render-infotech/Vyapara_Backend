@@ -1,16 +1,17 @@
 {
-  "include": ["src/**/*", "scripts"],
   "compilerOptions": {
-    "baseUrl": "./src",
-    "allowSyntheticDefaultImports": true,
-    "lib": ["dom", "es2015", "es2016", "esnext.asynciterable"],
-    "module": "es2015",
+    "target": "ES6",
+    "module": "ESNext",
     "moduleResolution": "node",
+    "baseUrl": "./src",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
     "removeComments": false,
     "preserveConstEnums": true,
     "sourceMap": true,
-    "skipLibCheck": true,
-    "target": "es6",
-    "experimentalDecorators": true
-  }
+    "lib": ["dom", "es2015", "es2016", "esnext.asynciterable"]
+  },
+  "include": ["src/**/*", "scripts"]
 }

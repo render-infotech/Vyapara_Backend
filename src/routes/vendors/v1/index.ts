@@ -18,11 +18,11 @@ Users.associate({
 VendorDetails.associate({ Users });
 CustomerDetails.associate({ Users });
 
-const VendorsController = new VendorController(Users, VendorDetails, CustomerDetails);
+const vendorController = new VendorController(Users, VendorDetails, CustomerDetails);
 
-const VendorsControllerRoutes = ControllerRoutes(VendorsController);
+const vendorControllerRoutes = ControllerRoutes(vendorController);
 
-app.use('/v1/vendor', VendorsControllerRoutes);
+app.use('/v1/vendor', vendorControllerRoutes);
 
 export default serverless(app);
 exports.vendors = serverless(app);

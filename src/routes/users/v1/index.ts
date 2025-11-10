@@ -26,11 +26,11 @@ CustomerAddress.associate({ Users, CustomerDetails });
 VendorDetails.associate({ Users });
 DigitalPurchase.associate({ Users, CustomerDetails });
 
-const UsersController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails);
+const userController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails);
 
-const UsersControllerRoutes = ControllerRoutes(UsersController);
+const userControllerRoutes = ControllerRoutes(userController);
 
-app.use('/v1/users', UsersControllerRoutes);
+app.use('/v1/users', userControllerRoutes);
 
 export default serverless(app);
 exports.users = serverless(app);

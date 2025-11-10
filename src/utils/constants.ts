@@ -149,3 +149,24 @@ export const predefinedPaymentType = {
     can_modify: 0,
   },
 };
+
+export const predefinedTaxType = {
+  GST: {
+    id: 1,
+    name: 'GST',
+    can_modify: 0,
+  },
+};
+
+export const predefinedTaxFor = {
+  Material: {
+    id: 1,
+    name: 'Material',
+    can_modify: 0,
+  },
+  Service_fee: {
+    id: 2,
+    name: 'Service_fee',
+    can_modify: 0,
+  },
+};

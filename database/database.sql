@@ -122,6 +122,23 @@ DEFAULT CHARSET=utf8mb4
 COMMENT='Stores gold/silver metal price per gram with change history tracking';
 
 
+-- Created new table to add tax precentage by admin - by Shubham
+CREATE TABLE IF NOT EXISTS `tax_rate` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the tax rate',
+  `material_id` INT NOT NULL COMMENT 'Material reference (1 = Gold, 2 = Silver)',
+  `tax_type` INT NOT NULL COMMENT 'Tax type reference (1 = GST, etc)',
+  `tax_percentage` DECIMAL(6,2) NOT NULL COMMENT 'Applied tax rate percentage',
+  `tax_on` INT NOT NULL COMMENT 'What this tax applies to (1 = Material, 2 = Service_fee)',
+  `is_latest` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Marks latest tax entry for material + tax name + tax_on + tax_percentage',
+  `effective_date` DATE NOT NULL COMMENT 'Tax effective start date',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT 'Is the tax rate active? (1 = Active, 0 = Inactive)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Table for storing tax rates';
+
+
+
 -- Created new table for digital purchases - by Shubham
 CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the purchase',

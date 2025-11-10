@@ -22,11 +22,11 @@ CustomerDetails.associate({ Users, CustomerAddress });
 CustomerAddress.associate({ Users, CustomerDetails });
 DigitalPurchase.associate({ Users });
 
-const CustomersController = new CustomerController(Users, CustomerDetails, CustomerAddress, DigitalPurchase);
+const customerController = new CustomerController(Users, CustomerDetails, CustomerAddress, DigitalPurchase);
 
-const CustomersControllerRoutes = ControllerRoutes(CustomersController);
+const customerControllerRoutes = ControllerRoutes(customerController);
 
-app.use('/v1/customer', CustomersControllerRoutes);
+app.use('/v1/customer', customerControllerRoutes);
 
 export default serverless(app);
 exports.customers = serverless(app);

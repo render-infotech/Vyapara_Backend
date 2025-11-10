@@ -9,11 +9,11 @@ const MaterialRate = MaterialRateModel(sequelize);
 
 // MaterialRate.associate({});
 
-const AdminMaterialRatesController = new AdminMaterialRateController(MaterialRate);
+const adminMaterialRateController = new AdminMaterialRateController(MaterialRate);
 
-const UsersControllerRoutes = ControllerRoutes(AdminMaterialRatesController);
+const adminMaterialRateControllerRoutes = ControllerRoutes(adminMaterialRateController);
 
-app.use('/v1/material-rates', UsersControllerRoutes);
+app.use('/v1/material-rates', adminMaterialRateControllerRoutes);
 
 export default serverless(app);
 exports.material_rates = serverless(app);

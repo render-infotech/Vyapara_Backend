@@ -1,20 +1,20 @@
 import { Request, Response } from 'express';
-import MaterialRateModel from '../models/materialRate';
-import { statusCodes } from '../utils/constants';
+import TaxRateModel from '../models/taxRate';
+import { predefinedTaxType, statusCodes } from '../utils/constants';
 import { prepareJSONResponse } from '../utils/utils.js';
 import logger from '../utils/logger.js';
 import { Op } from 'sequelize';
 
-export default class AdminMaterialRateController {
+export default class AdminTaxRateController {
   // @ts-ignore
-  private materialRateModel: MaterialRateModel;
+  private taxRateModel: TaxRateModel;
 
   // @ts-ignore
   constructor(
     // @ts-ignore
-    materialRateModel: MaterialRateModel,
+    taxRateModel: TaxRateModel,
   ) {
-    this.materialRateModel = materialRateModel;
+    this.taxRateModel = taxRateModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -71,7 +71,6 @@ export default class AdminMaterialRateController {
           date,
           time,
           price_per_gram: price,
-          live_price: rate.is_latest ? true : false,
           prev_change: changeFromPrevious,
           today_change: changeFromToday,
         };
@@ -118,9 +117,9 @@ export default class AdminMaterialRateController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async addMaterialRate(req: Request, res: Response) {
+  async addTaxRate(req: Request, res: Response) {
     const requestBody = req.body;
-    const mandatoryFields = ['material_id', 'price_per_gram'];
+    const mandatoryFields = ['material_id', 'tax_percentage', 'tax_on', 'effective_date'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -129,43 +128,27 @@ export default class AdminMaterialRateController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const previousRate = await this.materialRateModel.findOne({
-          where: { material_id: requestBody?.material_id, is_latest: true, status: 1 },
-          order: [['created_at', 'DESC']],
-        });
-        let change_percentage = 0;
-        if (previousRate) {
-          change_percentage = Number(
-            (
-              ((Number(requestBody?.price_per_gram) - Number(previousRate?.price_per_gram)) /
-                Number(previousRate?.price_per_gram)) *
-              100
-            ).toFixed(5),
-          );
-          await previousRate.update({ is_latest: false });
-        }
-
-        const newRate = await this.materialRateModel.create({
+        const newRate = await this.taxRateModel.create({
           material_id: requestBody?.material_id,
-          price_per_gram: requestBody?.price_per_gram,
-          change_percentage,
-          is_latest: true,
-          remarks: requestBody?.remarks || '',
+          tax_type: predefinedTaxType?.GST?.id,
+          tax_percentage: requestBody?.tax_percentage,
+          tax_on: requestBody.tax_on,
+          effective_date: requestBody?.effective_date,
         });
 
-        logger.info(`addMaterialRate - Added new entry: ${JSON.stringify(newRate)} }`);
+        logger.info(`addTaxRate - Added new entry: ${JSON.stringify(newRate)} }`);
         responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
       } catch (error) {
-        logger.error('addMaterialRate - Error while adding material rate.', error);
+        logger.error('addTaxRate - Error while adding material rate.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`addMaterialRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`addTaxRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getMaterialLatestRate(req: Request, res: Response) {
+  async getTaxLatestRate(req: Request, res: Response) {
     const requestBody = req.query;
     const mandatoryFields = ['material_id'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
@@ -176,39 +159,52 @@ export default class AdminMaterialRateController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const latestRate = await this.materialRateModel.findOne({
-          where: { material_id: requestBody.material_id, is_latest: 1, status: 1 },
+        let taxRateWhere: any = {
+          material_id: requestBody?.material_id,
+          tax_type: predefinedTaxType?.GST?.id,
+          status: 1,
+        };
+
+        if (requestBody?.tax_on) {
+          taxRateWhere.tax_on = requestBody?.tax_on;
+        }
+
+        const latestRate = await this.taxRateModel.findAll({
+          where: taxRateWhere,
           order: [['created_at', 'DESC']],
-          attributes: { exclude: ['status', 'created_at', 'updated_at'] },
         });
 
         if (!latestRate) {
           responseData = prepareJSONResponse({}, 'Rate not found', statusCodes.NOT_FOUND);
         } else {
-          const rateObj = latestRate.toJSON();
+          const formattedData = await Promise.all(
+            latestRate.map(async (rate) => {
+              return {
+                id: rate?.id,
+                tax_type: rate?.tax_type,
+                tax_percentage: await this.readablePercentageChange(Number(rate?.tax_percentage)),
+                tax_on: rate?.tax_on,
+                effective_date: rate?.effective_date,
+              };
+            }),
+          );
 
-          const changePercent = await this.readablePercentageChange(await this.safeNum(rateObj.change_percentage));
-
-          rateObj.change_percentage = changePercent ?? null;
-
-          responseData = prepareJSONResponse(rateObj, 'Success', statusCodes.OK);
+          responseData = prepareJSONResponse(formattedData, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('getMaterialLatestRate - Error fetching latest rate.', error);
+        logger.error('getTaxLatestRate - Error fetching latest rate.', error);
         responseData = prepareJSONResponse({}, 'Error Exception.', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(
-      `getMaterialLatestRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-    );
+    logger.info(`getTaxLatestRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getMaterialRatesHistory(req: Request, res: Response) {
+  async getTaxRatesHistory(req: Request, res: Response) {
     const requestBody = req.body;
-    const { material_id, till_date } = req.body;
-    const mandatoryFields = ['material_id', 'till_date'];
+    const { material_id, effective_date } = req.body;
+    const mandatoryFields = ['material_id', 'effective_date'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -217,50 +213,48 @@ export default class AdminMaterialRateController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const parsedDate = new Date(`${till_date}T23:59:59.999Z`);
-        if (isNaN(parsedDate.getTime())) {
-          responseData = prepareJSONResponse(
-            {},
-            'Invalid till_date format (YYYY-MM-DD expected)',
-            statusCodes.BAD_REQUEST,
-          );
+        const taxRateWhere: any = {
+          material_id,
+          status: 1,
+          effective_date: {
+            [Op.gte]: effective_date,
+          },
+        };
+
+        const taxRateData = await this.taxRateModel.findAll({
+          where: taxRateWhere,
+          order: [['created_at', 'DESC']],
+        });
+
+        if (!taxRateData || taxRateData.length === 0) {
+          responseData = prepareJSONResponse({}, 'No rate history found', statusCodes.NOT_FOUND);
         } else {
-          const materialRateWhere: any = {
+          let finalResponse: any = {
             material_id,
-            status: 1,
-            created_at: {
-              [Op.lte]: parsedDate,
-            },
           };
 
-          const materialRateData = await this.materialRateModel.findAll({
-            where: materialRateWhere,
-            order: [['created_at', 'DESC']],
-          });
+          const formattedData = await Promise.all(
+            taxRateData.map(async (rate) => {
+              return {
+                id: rate?.id,
+                tax_type: rate?.tax_type,
+                tax_percentage: await this.readablePercentageChange(Number(rate?.tax_percentage)),
+                tax_on: rate?.tax_on,
+                effective_date: rate?.effective_date,
+              };
+            }),
+          );
 
-          if (!materialRateData || materialRateData.length === 0) {
-            responseData = prepareJSONResponse({}, 'No rate history found', statusCodes.NOT_FOUND);
-          } else {
-            const historyResult = await this.materialRateHistory(materialRateData);
-            const overallResult = await this.calculateOverallChange(materialRateData);
+          finalResponse.rate_data = formattedData;
 
-            const finalResponse = {
-              material_id,
-              rate_data: historyResult.history,
-              overall_change_percentage: overallResult.overall_change_percentage,
-            };
-
-            responseData = prepareJSONResponse(finalResponse, 'Success', statusCodes.OK);
-          }
+          responseData = prepareJSONResponse(finalResponse, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('getMaterialRatesHistory - Error fetching latest rate.', error);
+        logger.error('getTaxRatesHistory - Error fetching latest rate.', error);
         responseData = prepareJSONResponse({}, 'Error Exception.', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(
-      `getMaterialRatesHistory - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-    );
+    logger.info(`getTaxRatesHistory - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }
