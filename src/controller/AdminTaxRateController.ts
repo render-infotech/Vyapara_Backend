@@ -18,102 +18,50 @@ export default class AdminTaxRateController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async safeNum(val: any) {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
   async readablePercentageChange(num: number | null) {
     if (num === null || !Number.isFinite(num)) return null;
     const fixed = Number(num.toFixed(5));
-    return `${fixed >= 0 ? '+' : ''}${fixed}%`;
+    return `${fixed}%`;
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async materialRateHistory(records = []) {
-    const historyResult: any = {};
+  async latestTaxRateFilter(records = []) {
+    const result: any = {};
 
     if (!records || records.length === 0) {
-      logger.info(`materialRateHistory - No rate records found ${JSON.stringify(records)}`);
-      historyResult.history = [];
-      return historyResult;
+      logger.info(`latestTaxRateFilter - No tax rate records found ${JSON.stringify(records)}`);
+      result.latestRates = [];
+      return result;
     }
 
-    const latestPrice = await this.safeNum(records[0].price_per_gram);
+    const latestMap = new Map<number, any>();
 
-    const formattedHistory = await Promise.all(
-      records.map(async (rate, index) => {
-        const price = await this.safeNum(rate.price_per_gram);
-        const createdAt = new Date(rate.created_at);
+    records.forEach((rate: any) => {
+      const existing = latestMap.get(rate.tax_on);
 
-        const date = createdAt.toISOString().split('T')[0];
-        const time = createdAt.toTimeString().split(' ')[0];
+      if (!existing) {
+        latestMap.set(rate.tax_on, rate);
+      } else {
+        const existingDate = new Date(existing.effective_date);
+        const currentDate = new Date(rate.effective_date);
 
-        const previous = records[index + 1];
-        const prevPrice = previous ? await this.safeNum(previous.price_per_gram) : null;
-
-        let changeFromPrevious: string | null = null;
-        if (prevPrice !== null && price !== null) {
-          const diff = ((price - prevPrice) / prevPrice) * 100;
-          changeFromPrevious = await this.readablePercentageChange(diff);
+        if (currentDate > existingDate) {
+          latestMap.set(rate.tax_on, rate);
+        } else if (
+          currentDate.getTime() === existingDate.getTime() &&
+          new Date(rate.created_at) > new Date(existing.created_at)
+        ) {
+          latestMap.set(rate.tax_on, rate);
         }
+      }
+    });
 
-        let changeFromToday: string | null = null;
-        if (latestPrice !== null && price !== null) {
-          const diff = ((price - latestPrice) / latestPrice) * 100;
-          changeFromToday = await this.readablePercentageChange(diff);
-        }
+    const filteredRates = Array.from(latestMap.values());
+    result.latestRates = filteredRates;
 
-        if (index === 0) changeFromToday = '+0.00%';
+    logger.info(`latestTaxRateFilter - Success ${filteredRates.length} records filtered`);
 
-        return {
-          date,
-          time,
-          price_per_gram: price,
-          prev_change: changeFromPrevious,
-          today_change: changeFromToday,
-        };
-      }),
-    );
-
-    historyResult.history = formattedHistory;
-    logger.info(`materialRateHistory - Success ${formattedHistory.length} records`);
-
-    return historyResult;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  async calculateOverallChange(records = [], limit = 5) {
-    const filterData: any = {};
-
-    if (!records || records.length < 2) {
-      logger.info(
-        `calculateOverallChange - Not enough data to calculate overall percentage change for ${JSON.stringify(records)} ${JSON.stringify(limit)} `,
-      );
-      filterData.overall_change_percentage = null;
-      return filterData;
-    }
-
-    const latestPrice = await this.safeNum(records[0]?.price_per_gram);
-    const oldestIndex = Math.min(limit - 1, records.length - 1);
-    const oldestPrice = await this.safeNum(records[oldestIndex]?.price_per_gram);
-
-    if (latestPrice === null || oldestPrice === null) {
-      logger.info(
-        `calculateOverallChange - Invalid price values for ${JSON.stringify(records)} ${JSON.stringify(limit)} `,
-      );
-      filterData.overall_change_percentage = null;
-      return filterData;
-    }
-
-    const diff = ((latestPrice - oldestPrice) / oldestPrice) * 100;
-    const formattedPercentage = await this.readablePercentageChange(diff);
-
-    filterData.overall_change_percentage = formattedPercentage;
-    logger.info(`calculateOverallChange - Success ${JSON.stringify(formattedPercentage)}`);
-
-    return filterData;
+    return result;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -128,16 +76,31 @@ export default class AdminTaxRateController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const newRate = await this.taxRateModel.create({
-          material_id: requestBody?.material_id,
-          tax_type: predefinedTaxType?.GST?.id,
-          tax_percentage: requestBody?.tax_percentage,
-          tax_on: requestBody.tax_on,
-          effective_date: requestBody?.effective_date,
+        const existingRate = await this.taxRateModel.findOne({
+          where: {
+            material_id: requestBody.material_id,
+            tax_type: predefinedTaxType?.GST?.id,
+            tax_on: requestBody.tax_on,
+            effective_date: requestBody.effective_date,
+            status: 1,
+          },
         });
 
-        logger.info(`addTaxRate - Added new entry: ${JSON.stringify(newRate)} }`);
-        responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        if (existingRate) {
+          logger.warn(`addTaxRate - Duplicate entry blocked: ${JSON.stringify(existingRate)}`);
+          responseData = prepareJSONResponse({}, 'A tax rate entry already exists for this.', statusCodes.BAD_REQUEST);
+        } else {
+          const newRate = await this.taxRateModel.create({
+            material_id: requestBody?.material_id,
+            tax_type: predefinedTaxType?.GST?.id,
+            tax_percentage: requestBody?.tax_percentage,
+            tax_on: requestBody.tax_on,
+            effective_date: requestBody?.effective_date,
+          });
+
+          logger.info(`addTaxRate - Added new entry: ${JSON.stringify(newRate)} }`);
+          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+        }
       } catch (error) {
         logger.error('addTaxRate - Error while adding material rate.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
@@ -148,9 +111,9 @@ export default class AdminTaxRateController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getTaxLatestRate(req: Request, res: Response) {
+  async getLatestTaxRate(req: Request, res: Response) {
     const requestBody = req.query;
-    const mandatoryFields = ['material_id'];
+    const mandatoryFields = ['material_id', 'date'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -163,6 +126,7 @@ export default class AdminTaxRateController {
           material_id: requestBody?.material_id,
           tax_type: predefinedTaxType?.GST?.id,
           status: 1,
+          effective_date: { [Op.lte]: requestBody.date },
         };
 
         if (requestBody?.tax_on) {
@@ -171,14 +135,19 @@ export default class AdminTaxRateController {
 
         const latestRate = await this.taxRateModel.findAll({
           where: taxRateWhere,
-          order: [['created_at', 'DESC']],
+          order: [
+            ['effective_date', 'DESC'],
+            ['created_at', 'DESC'],
+          ],
         });
 
-        if (!latestRate) {
+        if (!latestRate || latestRate.length === 0) {
           responseData = prepareJSONResponse({}, 'Rate not found', statusCodes.NOT_FOUND);
         } else {
+          const { latestRates } = await this.latestTaxRateFilter(latestRate);
+
           const formattedData = await Promise.all(
-            latestRate.map(async (rate) => {
+            latestRates.map(async (rate: any) => {
               return {
                 id: rate?.id,
                 tax_type: rate?.tax_type,
@@ -192,11 +161,11 @@ export default class AdminTaxRateController {
           responseData = prepareJSONResponse(formattedData, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('getTaxLatestRate - Error fetching latest rate.', error);
+        logger.error('getLatestTaxRate - Error fetching latest rate.', error);
         responseData = prepareJSONResponse({}, 'Error Exception.', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`getTaxLatestRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(`getLatestTaxRate - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
@@ -223,7 +192,10 @@ export default class AdminTaxRateController {
 
         const taxRateData = await this.taxRateModel.findAll({
           where: taxRateWhere,
-          order: [['created_at', 'DESC']],
+          order: [
+            ['effective_date', 'DESC'],
+            ['created_at', 'DESC'],
+          ],
         });
 
         if (!taxRateData || taxRateData.length === 0) {

@@ -122,11 +122,11 @@ DEFAULT CHARSET=utf8mb4
 COMMENT='Stores gold/silver metal price per gram with change history tracking';
 
 
--- Created new table to add tax precentage by admin - by Shubham
+-- Created new table to add dynamic tax precentage by admin - by Shubham
 CREATE TABLE IF NOT EXISTS `tax_rate` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the tax rate',
   `material_id` INT NOT NULL COMMENT 'Material reference (1 = Gold, 2 = Silver)',
-  `tax_type` INT NOT NULL COMMENT 'Tax type reference (1 = GST, etc)',
+  `tax_type` INT NOT NULL DEFAULT 1 COMMENT 'Tax type reference (1 = GST, etc)',
   `tax_percentage` DECIMAL(6,2) NOT NULL COMMENT 'Applied tax rate percentage',
   `tax_on` INT NOT NULL COMMENT 'What this tax applies to (1 = Material, 2 = Service_fee)',
   `is_latest` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Marks latest tax entry for material + tax name + tax_on + tax_percentage',

@@ -6,7 +6,7 @@ const router = express.Router();
 
 export default (adminTaxRateController: AdminTaxRateController) => {
   router.post('/add', Authentication(), adminTaxRateController.addTaxRate.bind(adminTaxRateController));
-  router.get('/latest', Authentication(), adminTaxRateController.getTaxLatestRate.bind(adminTaxRateController));
+  router.get('/latest', Authentication(), adminTaxRateController.getLatestTaxRate.bind(adminTaxRateController));
   router.post('/tax-history', Authentication(), adminTaxRateController.getTaxRatesHistory.bind(adminTaxRateController));
 
   return router;

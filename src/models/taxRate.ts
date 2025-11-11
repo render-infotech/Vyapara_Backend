@@ -51,6 +51,7 @@ export default (sequelize: Sequelize): typeof TaxRate => {
       tax_type: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        defaultValue: 1,
         comment: 'Tax type reference (1 = GST, etc)',
       },
       tax_percentage: {
