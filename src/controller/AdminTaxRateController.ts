@@ -142,7 +142,7 @@ export default class AdminTaxRateController {
         });
 
         if (!latestRate || latestRate.length === 0) {
-          responseData = prepareJSONResponse({}, 'Rate not found', statusCodes.NOT_FOUND);
+          responseData = prepareJSONResponse([], 'Rate not found', statusCodes.NOT_FOUND);
         } else {
           const { latestRates } = await this.latestTaxRateFilter(latestRate);
 
@@ -186,7 +186,7 @@ export default class AdminTaxRateController {
           material_id,
           status: 1,
           effective_date: {
-            [Op.gte]: effective_date,
+            [Op.lte]: effective_date,
           },
         };
 
@@ -199,7 +199,7 @@ export default class AdminTaxRateController {
         });
 
         if (!taxRateData || taxRateData.length === 0) {
-          responseData = prepareJSONResponse({}, 'No rate history found', statusCodes.NOT_FOUND);
+          responseData = prepareJSONResponse([], 'No rate history found', statusCodes.NOT_FOUND);
         } else {
           let finalResponse: any = {
             material_id,

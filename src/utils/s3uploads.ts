@@ -1,7 +1,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as AWS from '@aws-sdk/client-s3';
-import * as multer from 'multer';
-import * as multerS3 from 'multer-s3';
+import multer from 'multer';
+import multerS3 from 'multer-s3';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import logger from './logger.js';
 

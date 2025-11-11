@@ -1,0 +1,31 @@
+service_fee_rates:
+  handler: src/routes/systemSettings/v1/service_fee_rates/index.service_fee_rates
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/service-fee-rates
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
+    - http:
+        path: /v1/service-fee-rates/{proxy+}
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true

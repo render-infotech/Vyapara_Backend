@@ -170,3 +170,11 @@ export const predefinedTaxFor = {
     can_modify: 0,
   },
 };
+
+export const predefinedServiceFeeFor = {
+  Convenience_fee: {
+    id: 1,
+    name: 'Convenience Fee',
+    can_modify: 0,
+  },
+};

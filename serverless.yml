@@ -38,6 +38,7 @@ functions:
   - ${file(./src/routes/vendors/v1/vendors.yml)}
   - ${file(./src/routes/systemSettings/v1/material_rates/material_rates.yml)}
   - ${file(./src/routes/systemSettings/v1/tax_rates/tax_rates.yml)}
+  - ${file(./src/routes/systemSettings/v1/service_fee_rates/service_fee_rates.yml)}
 
 plugins:
   - serverless-offline

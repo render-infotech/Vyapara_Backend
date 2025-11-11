@@ -138,6 +138,21 @@ CREATE TABLE IF NOT EXISTS `tax_rate` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Table for storing tax rates';
 
 
+-- Created new table to add dynamic service fee rate by admin - by Shubham
+CREATE TABLE IF NOT EXISTS `service_fee_rate` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the service fee rate',
+  `material_id` INT NOT NULL COMMENT 'Material reference (1 = Gold, 2 = Silver)',
+  `service_fee_type` INT NOT NULL DEFAULT 1 COMMENT 'Service fee type reference (1 = convenience fee, etc)',
+  `service_fee_rate` DECIMAL(6,2) NOT NULL COMMENT 'Service fee rate (percentage or fixed value)',
+  `effective_date` DATE NOT NULL COMMENT 'Service fee applicable from date',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT 'Status (1 = Active, 0 = Inactive)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Table for storing service fee rates';
+
+
+
 
 -- Created new table for digital purchases - by Shubham
 CREATE TABLE IF NOT EXISTS `digital_purchase` (
