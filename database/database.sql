@@ -163,22 +163,31 @@ CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
   `amount` DECIMAL(15,2) NOT NULL COMMENT 'Base amount entered by customer (excluding taxes)',
   `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram at purchase time',
-  `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated',
-  `tax_percentage` DECIMAL(5,2) NOT NULL DEFAULT 18.0 COMMENT 'Applicable tax percentage (e.g., GST)',
-  `tax_amount` DECIMAL(15,2) NOT NULL COMMENT 'Calculated tax amount',
-  `convenience_fee_rate` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Convenience fee rate (%)',
-  `convenience_fee` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Convenience fee amount',
-  `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax and convenience fee',
+  `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated = amount / price_per_gram',
+
+  `tax_rate_material` VARCHAR(10) NOT NULL COMMENT 'Tax rate applied on material (e.g. +5%)',
+  `tax_amount_material` DECIMAL(15,2) NOT NULL COMMENT 'Tax amount calculated on material',
+  `tax_rate_service` VARCHAR(10) NOT NULL COMMENT 'Tax rate applied on service (e.g. +16%)',
+  `tax_amount_service` DECIMAL(15,2) NOT NULL COMMENT 'Tax amount calculated on service',
+  `total_tax_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total combined tax (material + service)',
+
+  `service_fee_rate` VARCHAR(10) NOT NULL DEFAULT '0.0' COMMENT 'Service fee rate (%) as string',
+  `service_fee` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Service fee amount',
+  `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax, commission, and service charge',
+
   `purchase_status` INT NOT NULL DEFAULT 1 COMMENT 'Purchase status (1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded)',
-  `rate_timestamp` DATETIME DEFAULT NULL COMMENT 'Timestamp when the rate was fetched',
+  `rate_timestamp` DATETIME NOT NULL COMMENT 'Timestamp when the rate was fetched',
   `remarks` TEXT DEFAULT NULL COMMENT 'Optional remarks or notes about the transaction',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_digital_purchase_user`
     FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB
 COMMENT='Digital gold/silver purchase records table';
+
+
 
 

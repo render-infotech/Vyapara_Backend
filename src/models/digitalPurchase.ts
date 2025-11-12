@@ -12,10 +12,13 @@ interface DigitalPurchaseAttributes {
   amount: number;
   price_per_gram: number;
   grams_purchased: number;
-  tax_percentage: number;
-  tax_amount?: number;
-  convenience_fee_rate?: number; // % value
-  convenience_fee: number; // actual fee amount
+  tax_rate_material?: string; // tax rate % on material
+  tax_amount_material?: number; // tax amount on material
+  tax_rate_service?: string; // tax rate % on service
+  tax_amount_service?: number; // tax amount on material
+  total_tax_amount?: number; // e.g. 81
+  service_fee_rate?: string; // service rate % value
+  service_fee: number; // actual fee amount
   total_amount: number;
   purchase_status: number; // 1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded
   rate_timestamp?: Date;
@@ -48,13 +51,19 @@ class DigitalPurchase
 
   public grams_purchased!: number;
 
-  public tax_percentage!: number;
+  public tax_rate_material?: string;
 
-  public tax_amount?: number;
+  public tax_amount_material?: number;
 
-  public convenience_fee_rate?: number;
+  public tax_rate_service?: string;
 
-  public convenience_fee!: number;
+  public tax_amount_service?: number;
+
+  public total_tax_amount?: number;
+
+  public service_fee_rate?: string;
+
+  public service_fee!: number;
 
   public total_amount!: number;
 
@@ -141,28 +150,42 @@ const DigitalPurchaseModel = (sequelize: Sequelize): typeof DigitalPurchase => {
         allowNull: false,
         comment: 'Grams calculated = amount / price_per_gram',
       },
-      tax_percentage: {
-        type: DataTypes.DECIMAL(5, 2),
+      tax_rate_material: {
+        type: DataTypes.STRING(10),
         allowNull: false,
-        defaultValue: 18.0,
-        comment: 'Applicable tax percentage (e.g., GST)',
+        comment: 'Tax rate applied on material (e.g. +5%)',
       },
-      tax_amount: {
+      tax_amount_material: {
         type: DataTypes.DECIMAL(15, 2),
         allowNull: false,
-        comment: 'Calculated tax amount',
+        comment: 'Tax amount calculated on material',
       },
-      convenience_fee_rate: {
-        type: DataTypes.DECIMAL(5, 2),
-        allowNull: true,
-        defaultValue: 0.0,
-        comment: 'Convenience fee rate (%)',
+      tax_rate_service: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        comment: 'Tax rate applied on service (e.g. +16%)',
       },
-      convenience_fee: {
+      tax_amount_service: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        comment: 'Tax amount calculated on service',
+      },
+      total_tax_amount: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        comment: 'Total combined tax (material + service)',
+      },
+      service_fee_rate: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: '0.0',
+        comment: 'Service fee rate (%) as string',
+      },
+      service_fee: {
         type: DataTypes.DECIMAL(15, 2),
         allowNull: false,
         defaultValue: 0.0,
-        comment: 'Convenience fee amount',
+        comment: 'Service fee amount',
       },
       total_amount: {
         type: DataTypes.DECIMAL(15, 2),
@@ -177,7 +200,7 @@ const DigitalPurchaseModel = (sequelize: Sequelize): typeof DigitalPurchase => {
       },
       rate_timestamp: {
         type: DataTypes.DATE,
-        allowNull: true,
+        allowNull: false,
         comment: 'Timestamp when the rate was fetched',
       },
       remarks: {
