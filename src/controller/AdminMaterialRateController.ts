@@ -176,22 +176,32 @@ export default class AdminMaterialRateController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const latestRate = await this.materialRateModel.findOne({
-          where: { material_id: requestBody.material_id, is_latest: 1, status: 1 },
+        const latestRates = await this.materialRateModel.findAll({
+          where: { material_id: requestBody.material_id, status: 1 },
           order: [['created_at', 'DESC']],
+          limit: 2,
           attributes: { exclude: ['status', 'created_at', 'updated_at'] },
         });
 
-        if (!latestRate) {
+        if (!latestRates) {
           responseData = prepareJSONResponse({}, 'Rate not found', statusCodes.NOT_FOUND);
         } else {
-          const rateObj = latestRate.toJSON();
+          const latestRate = latestRates[0].toJSON();
+          const previousRate = latestRates[1] ? latestRates[1].toJSON() : null;
 
-          const changePercent = await this.readablePercentageChange(await this.safeNum(rateObj.change_percentage));
+          const changePercent = await this.readablePercentageChange(await this.safeNum(latestRate.change_percentage));
 
-          rateObj.change_percentage = changePercent ?? null;
+          const formattedData = {
+            id: latestRate.id,
+            material_id: latestRate.material_id,
+            price_per_gram: latestRate.price_per_gram,
+            change_percentage: changePercent ?? null,
+            is_latest: latestRate.is_latest,
+            remarks: latestRate.remarks ?? '',
+            last_updated_price: previousRate ? previousRate.price_per_gram : null,
+          };
 
-          responseData = prepareJSONResponse(rateObj, 'Success', statusCodes.OK);
+          responseData = prepareJSONResponse(formattedData, 'Success', statusCodes.OK);
         }
       } catch (error) {
         logger.error('getMaterialLatestRate - Error fetching latest rate.', error);
