@@ -29,7 +29,12 @@ export default (customersController: CustomerController) => {
   router.get(
     '/digital-purchase/get',
     Authentication(),
-    customersController.getDigitalPurchase.bind(customersController),
+    customersController.getDigitalPurchaseList.bind(customersController),
+  );
+  router.post(
+    '/digital-purchase/all',
+    Authentication(),
+    customersController.getAllCustomersDigitalPurchases.bind(customersController),
   );
   return router;
 };

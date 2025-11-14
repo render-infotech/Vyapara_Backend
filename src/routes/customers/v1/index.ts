@@ -27,8 +27,6 @@ Users.associate({
 CustomerDetails.associate({ Users, CustomerAddress });
 CustomerAddress.associate({ Users, CustomerDetails });
 DigitalPurchase.associate({ Users });
-DigitalPurchase.associate({ Users });
-DigitalPurchase.associate({ Users });
 
 const customerController = new CustomerController(
   Users,

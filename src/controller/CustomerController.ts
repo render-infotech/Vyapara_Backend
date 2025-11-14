@@ -1104,7 +1104,7 @@ export default class CustomersController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getDigitalPurchase(req: Request, res: Response) {
+  async getDigitalPurchaseList(req: Request, res: Response) {
     const requestBody = req.query;
     const mandatoryFields = ['customer_id'];
     const missingFields = mandatoryFields.filter(
@@ -1154,7 +1154,7 @@ export default class CustomersController {
           ],
           attributes: { exclude: ['created_at', 'updated_at'] },
         });
-        logger.info(`getDigitalPurchase - fetched customers ${JSON.stringify(customerRecords)}`);
+        logger.info(`getDigitalPurchaseList - fetched customers ${JSON.stringify(customerRecords)}`);
         if (customerRecords.length === 0) {
           responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
         } else {
@@ -1163,11 +1163,101 @@ export default class CustomersController {
           responseData = prepareJSONResponse(allDigitalPurchases, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('getDigitalPurchase - Error retrieving Customer digital purchase.', error);
+        logger.error('getDigitalPurchaseList - Error retrieving Customer digital purchase.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(`getDigitalPurchase - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    logger.info(
+      `getDigitalPurchaseList - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getAllCustomersDigitalPurchases(req: Request, res: Response) {
+    const requestBody = req.body;
+    const { start_date, end_date } = req.body;
+    const mandatoryFields = ['start_date', 'end_date'];
+    const missingFields = mandatoryFields.filter(
+      (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
+    );
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const startDate = new Date(String(start_date));
+        const endDate = new Date(String(end_date));
+        endDate.setHours(23, 59, 59, 999); // include full end date
+
+        const allCustomersData = await this.usersModel.findAll({
+          where: {
+            role_id: predefinedRoles.User.id,
+            is_deactivated: 0,
+            status: 1,
+          },
+          include: [
+            {
+              model: this.customerDetailsModel,
+              as: 'customerDetails',
+              attributes: ['customer_code'],
+              required: true,
+            },
+            {
+              model: this.digitalPurchaseModel,
+              as: 'digitalPurchase',
+              required: false,
+              where: {
+                created_at: {
+                  [Op.between]: [startDate, endDate],
+                },
+              },
+              attributes: {
+                exclude: [
+                  'customer_id',
+                  'transaction_type_id',
+                  'rate_timestamp',
+                  'remarks',
+                  'created_at',
+                  'updated_at',
+                ],
+              },
+            },
+          ],
+          attributes: {
+            exclude: ['created_at', 'updated_at'],
+          },
+        });
+
+        logger.info(`getAllCustomersDigitalPurchases - fetched all the customers ${JSON.stringify(allCustomersData)}`);
+        if (allCustomersData.length === 0) {
+          responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
+        } else {
+          const flattenedPurchases: any[] = [];
+
+          allCustomersData.forEach((customer) => {
+            const code = customer.customerDetails.customer_code;
+
+            customer.digitalPurchase.forEach((pur: any) => {
+              flattenedPurchases.push({
+                ...pur.toJSON(),
+                customer_code: code,
+              });
+            });
+          });
+          responseData = prepareJSONResponse(flattenedPurchases, 'Success', statusCodes.OK);
+        }
+      } catch (error) {
+        logger.error('getAllCustomersDigitalPurchases - Error retrieving Customer digital purchase.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `getAllCustomersDigitalPurchases - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
     return res.status(responseData.status).json(responseData);
   }
 }

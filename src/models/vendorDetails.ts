@@ -1,12 +1,6 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 
-// Define the attributes for the VendorDetails model
-interface Material {
-  id: number;
-  name: string;
-}
-
 interface WorkingHour {
   id: number;
   day: string; // mon, tue, wed, etc.
@@ -30,7 +24,7 @@ interface VendorDetailsAttributes {
   is_gst_registered?: number;
   website?: string;
   description?: string;
-  materials?: Material[];
+  materials?: string[];
   payment_modes?: string[];
   working_hours?: WorkingHour[];
   rating?: number;
@@ -74,7 +68,7 @@ class VendorDetails
 
   public description?: string;
 
-  public materials?: Material[];
+  public materials?: string[];
 
   public payment_modes?: string[];
 
@@ -190,7 +184,7 @@ const VendorDetailsModel = (sequelize: Sequelize): typeof VendorDetails => {
       materials: {
         type: DataTypes.JSON,
         allowNull: true,
-        comment: 'List of materials vendor deals in',
+        comment: 'List of material IDs vendor deals in, e.g. ["1", "2"]',
       },
       payment_modes: {
         type: DataTypes.JSON,

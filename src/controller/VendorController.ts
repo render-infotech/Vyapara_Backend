@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
-import { predefinedRoles, statusCodes } from '../utils/constants';
+import { predefinedMaterials, predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import SqlError from '../errors/sqlError';
 import { prepareJSONResponse, generatePassword } from '../utils/utils';
@@ -36,10 +36,9 @@ export default class VendorsController {
   async emailExists(email) {
     try {
       const user = await this.usersModel.findOne({
-        attributes: ['id', 'email'],
+        attributes: ['id', 'email', 'is_deactivated'],
         where: {
           email,
-          is_deactivated: 0,
         },
       });
       return user;
@@ -65,6 +64,17 @@ export default class VendorsController {
       return vendorDetails;
     } catch (error) {
       logger.error('Error Exception in createVendor.', error, data);
+      throw new SqlError(error);
+    }
+  }
+
+  async isPreDefinedMaterial(materialId: number) {
+    try {
+      const predefinedList = Object.values(predefinedMaterials);
+      const material = predefinedList.find((m: any) => m.id === Number(materialId));
+      return material || null;
+    } catch (error) {
+      logger.error('Error in isPreDefinedMaterial helper.', error, materialId);
       throw new SqlError(error);
     }
   }
@@ -382,7 +392,6 @@ export default class VendorsController {
             },
             { where: { id: requestBody.vendor_id, role_id: predefinedRoles?.Vendor?.id } },
           );
-
           let vendorRecord = await this.vendorDetailsModel.findOne({ where: { vendor_id: requestBody.vendor_id } });
           if (!vendorRecord) {
             const vendorFields = {};
@@ -426,7 +435,7 @@ export default class VendorsController {
   // eslint-disable-next-line class-methods-use-this
   async vendorAddMaterial(req: Request, res: Response) {
     const requestBody = req.body;
-    const mandatoryFields = ['vendor_id', 'name'];
+    const mandatoryFields = ['vendor_id', 'material_id'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -435,20 +444,36 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.vendorDetailsModel.findOne({
-          where: { vendor_id: requestBody.vendor_id },
-        });
-        if (!recordExists) {
-          responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
+        const { vendor_id, material_id } = requestBody;
+
+        const validMaterial = await this.isPreDefinedMaterial(material_id);
+
+        if (!validMaterial) {
+          responseData = prepareJSONResponse(
+            {},
+            'Invalid material ID — only predefined materials are allowed (Gold, Silver, etc.)',
+            statusCodes.BAD_REQUEST,
+          );
         } else {
-          const materials = recordExists.materials || [];
+          const recordExists = await this.vendorDetailsModel.findOne({
+            where: { vendor_id: requestBody.vendor_id },
+          });
+          if (!recordExists) {
+            responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
+          } else {
+            const materials = recordExists.materials || [];
 
-          const newMaterial = { id: uuidv4(), name: requestBody?.name };
-          const updatedMaterials = [...materials, newMaterial];
+            if (materials.includes(material_id)) {
+              responseData = prepareJSONResponse({}, 'Material already exists', statusCodes.BAD_REQUEST);
+            } else {
+              const updatedMaterials = [...materials, material_id];
+              await recordExists.update({ materials: updatedMaterials, is_complete: 1 });
+              await recordExists.reload();
 
-          const newData = await recordExists.update({ materials: updatedMaterials, is_complete: 1 });
-          logger.info(`vendorAddMaterial - Added new entry: ${JSON.stringify(newData)} }`);
-          responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+              logger.info(`vendorAddMaterial - Added new material ID ${material_id} to vendor ${vendor_id}`);
+              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            }
+          }
         }
       } catch (error) {
         logger.error('vendorAddMaterial - Error while adding Vendors material in vendor details.', error);
@@ -484,6 +509,8 @@ export default class VendorsController {
           } else {
             materials[materialIndex] = { ...materials[materialIndex], name };
             const newData = await recordExists.update({ materials });
+            await recordExists.reload();
+
             logger.info(`vendorUpdateMaterial - Updated the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
@@ -510,19 +537,34 @@ export default class VendorsController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const recordExists = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
-        if (!recordExists) {
-          responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
-        } else {
-          let materials = recordExists.materials || [];
-          const updatedMaterials = materials.filter((m: any) => m.id !== material_id);
+        const validMaterial = await this.isPreDefinedMaterial(material_id);
 
-          if (materials.length === updatedMaterials.length) {
-            responseData = prepareJSONResponse({}, 'Material not found', statusCodes.NOT_FOUND);
+        if (!validMaterial) {
+          responseData = prepareJSONResponse(
+            {},
+            'Invalid material ID — only predefined materials are allowed (Gold, Silver, etc.)',
+            statusCodes.BAD_REQUEST,
+          );
+        } else {
+          const recordExists = await this.vendorDetailsModel.findOne({ where: { vendor_id } });
+          if (!recordExists) {
+            responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
           } else {
-            const newData = await recordExists.update({ materials: updatedMaterials });
-            logger.info(`vendorDeleteMaterial - Soft deleted the entry: ${JSON.stringify(newData)} }`);
-            responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            let materials = recordExists.materials || [];
+            const materialIdsToRemove = Array.isArray(material_id) ? material_id.map(Number) : [Number(material_id)];
+
+            const updatedMaterials = materials.filter((m: number) => !materialIdsToRemove.includes(Number(m)));
+
+            const removedMaterials = materials.filter((m: number) => materialIdsToRemove.includes(Number(m)));
+
+            if (removedMaterials.length === 0) {
+              responseData = prepareJSONResponse({}, 'No matching material(s) found', statusCodes.NOT_FOUND);
+            } else {
+              const newData = await recordExists.update({ materials: updatedMaterials });
+              await recordExists.reload();
+              logger.info(`vendorDeleteMaterial - Removed material IDs: ${JSON.stringify(newData)} }`);
+              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+            }
           }
         }
       } catch (error) {
@@ -592,6 +634,7 @@ export default class VendorsController {
             responseData = prepareJSONResponse({}, 'Payment mode not found', statusCodes.NOT_FOUND);
           } else {
             const newData = await vendorRecord.update({ payment_modes: updatedModes });
+            await vendorRecord.reload();
             logger.info(`vendorDeletePaymentMode - Soft deleted the entry: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
@@ -627,11 +670,20 @@ export default class VendorsController {
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
-          const workingHours = vendorRecord.working_hours || [];
-          const newHour = { id: uuidv4(), day, open: open, close: close, is_closed };
-          workingHours.push(newHour);
-          const newData = await vendorRecord.update({ working_hours: workingHours });
-          logger.info(`vendorAddWorkingHour - Created new entry: ${JSON.stringify(newData)} }`);
+          const newHour = {
+            id: uuidv4(),
+            day,
+            open,
+            close,
+            is_closed: Number(is_closed),
+          };
+
+          const currentHours = Array.isArray(vendorRecord.working_hours) ? vendorRecord.working_hours : [];
+
+          const updatedHours = [...currentHours, newHour];
+
+          const newdata = await vendorRecord.update({ working_hours: updatedHours });
+          logger.info(`vendorAddWorkingHour - Created new entry: ${JSON.stringify(newdata)} }`);
           responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
         }
       } catch (error) {
@@ -667,10 +719,20 @@ export default class VendorsController {
           const index = workingHours.findIndex((w: any) => w.id === hour_id);
           if (index === -1) {
             responseData = prepareJSONResponse({}, 'Working hour not found', statusCodes.NOT_FOUND);
-          } else {
-            workingHours[index] = { ...workingHours[index], day, open: open || null, close: close || null, is_closed };
-            const newData = await vendorRecord.update({ working_hours: workingHours });
-            logger.info(`vendorUpdateWorkingHour - Updated the entry: ${JSON.stringify(newData)} }`);
+            const updatedHour = {
+              ...workingHours[index],
+              day,
+              open: open ?? null,
+              close: close ?? null,
+              is_closed: Number(is_closed),
+            };
+
+            const updatedHoursArray = [...workingHours];
+            updatedHoursArray[index] = updatedHour;
+
+            await vendorRecord.update({ working_hours: updatedHoursArray });
+            await vendorRecord.reload();
+            logger.info(`vendorUpdateWorkingHour - Updated the entry: ${JSON.stringify(updatedHour)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
@@ -705,13 +767,19 @@ export default class VendorsController {
         if (!vendorRecord) {
           responseData = prepareJSONResponse({}, 'Vendor not found', statusCodes.NOT_FOUND);
         } else {
-          const workingHours = vendorRecord.working_hours || [];
-          const updatedHours = workingHours.filter((w: any) => w.id !== hour_id);
-          if (workingHours.length === updatedHours.length) {
+          const workingHours: any[] = Array.isArray(vendorRecord.working_hours)
+            ? vendorRecord.working_hours
+            : vendorRecord.working_hours
+              ? JSON.parse(vendorRecord.working_hours)
+              : [];
+          const updatedHours = workingHours.filter((w) => w.id !== hour_id);
+
+          if (updatedHours.length === workingHours.length) {
             responseData = prepareJSONResponse({}, 'Working hour not found', statusCodes.NOT_FOUND);
           } else {
             const newData = await vendorRecord.update({ working_hours: updatedHours });
-            logger.info(`vendorDeleteWorkingHour - Soft deleted the entry: ${JSON.stringify(newData)} }`);
+            await vendorRecord.reload();
+            logger.info(`vendorDeleteWorkingHour - Working hour deleted successfully: ${JSON.stringify(newData)} }`);
             responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
         }
