@@ -25,5 +25,15 @@ export default (digitalPurchaseController: DigitalPurchaseController) => {
     Authentication(),
     digitalPurchaseController.getAllCustomersDigitalPurchases.bind(digitalPurchaseController),
   );
+  router.post(
+    '/verify-payment',
+    Authentication(),
+    digitalPurchaseController.verifyPayment.bind(digitalPurchaseController),
+  );
+  router.post(
+    '/razorpay/webhook',
+    express.json({ type: '*/*' }),
+    digitalPurchaseController.handleRazorpayWebhook.bind(digitalPurchaseController),
+  );
   return router;
 };

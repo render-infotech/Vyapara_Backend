@@ -223,7 +223,10 @@ CREATE TABLE IF NOT EXISTS `digital_holdings` (
 ) ENGINE=InnoDB
 COMMENT='Unified data for digital gold/silver holdings';
 
-
-
-
-
+-- Created new columns for digital purchase- by Afrid
+ALTER TABLE digital_purchase
+ADD COLUMN razorpay_order_id VARCHAR(255),
+ADD COLUMN razorpay_payment_id VARCHAR(255),
+ADD COLUMN razorpay_signature VARCHAR(255),
+ADD COLUMN payment_status TINYINT DEFAULT 0,
+ADD COLUMN webhook_event_id VARCHAR(255);

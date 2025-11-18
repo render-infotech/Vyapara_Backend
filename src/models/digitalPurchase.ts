@@ -26,6 +26,11 @@ interface DigitalPurchaseAttributes {
   remarks?: string;
   created_at: Date;
   updated_at: Date;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  razorpay_signature?: string;
+  payment_status?: number;
+  webhook_event_id?: string;
 }
 
 // Optional attributes for creation
@@ -77,6 +82,16 @@ class DigitalPurchase
   public created_at!: Date;
 
   public updated_at!: Date;
+
+  public razorpay_order_id?: string;
+
+  public razorpay_payment_id?: string;
+
+  public razorpay_signature?: string;
+
+  public payment_status?: number;
+
+  public webhook_event_id?: string;
 
   /**
    * The type for the association between models
@@ -231,6 +246,26 @@ const DigitalPurchaseModel = (sequelize: Sequelize): typeof DigitalPurchase => {
         defaultValue: DataTypes.NOW,
         onUpdate: DataTypes.NOW as any,
         comment: 'Record last update timestamp',
+      },
+      razorpay_order_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      razorpay_payment_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      razorpay_signature: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      payment_status: {
+        type: DataTypes.TINYINT,
+        defaultValue: 0,
+      },
+      webhook_event_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
       },
     },
     {

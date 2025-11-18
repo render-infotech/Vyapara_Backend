@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
+import crypto from 'crypto';
+import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
+import razorpayWebhookLogger from '../utils/razorpayWebhookLogger.js';
 import UsersModel from '../models/users';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
@@ -357,187 +360,283 @@ export default class DigitalPurchaseController {
     let message = 'Missing required fields';
 
     if (missingFields.length > 0) {
-      message = `Missing required fields: ${missingFields.join(', ')}`;
-      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
-    } else {
-      if (role_id !== predefinedRoles.User.id) {
-        responseData = prepareJSONResponse({}, 'Not allowed for this role.', statusCodes.FORBIDDEN);
-      } else {
-        try {
-          const {
-            customer_id,
-            material_id,
-            amount,
-            date,
-            price_per_gram,
-            tax_rate_material,
-            tax_rate_service_fee,
-            service_fee_rate,
-            total_amount,
-            preview_generated_at,
-          } = requestBody;
-
-          const materialIdNum = Number(material_id);
-          const amountNum = Number(amount);
-
-          const recordExists = await this.usersModel.findOne({
-            where: {
-              id: customer_id,
-              role_id: role_id,
-              is_deactivated: 0,
-              status: 1,
-            },
-          });
-
-          if (!recordExists) {
-            responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
-            return res.status(responseData.status).json(responseData);
-          }
-
-          if (preview_generated_at) {
-            const previewTime = new Date(preview_generated_at);
-            const diffMs = Date.now() - previewTime.getTime();
-            const diffMinutes = diffMs / 60000;
-            if (diffMinutes > 5) {
-              responseData = prepareJSONResponse(
-                {},
-                'Preview expired. Please refresh rates before proceeding.',
-                statusCodes.BAD_REQUEST,
-              );
-              return res.status(responseData.status).json(responseData);
-            }
-          }
-
-          const livePrice = await this.getLiveMaterialPrice(materialIdNum);
-          if (!livePrice.live_price) {
-            responseData = prepareJSONResponse({}, 'Material price not found', statusCodes.NOT_FOUND);
-            return res.status(responseData.status).json(responseData);
-          }
-
-          const latest_price_per_gram = await this.safeNum(livePrice.live_price.price_per_gram);
-          const appliedDate = date;
-
-          const materialTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 1);
-          const serviceTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 2);
-          const feeRate = await this.getApplicableServiceFeeRate(materialIdNum, amountNum, appliedDate);
-
-          const latestMaterialTaxRate = Number(materialTax?.latest_tax?.tax_percentage || 0);
-          const latestServiceTaxRate = Number(serviceTax?.latest_tax?.tax_percentage || 0);
-          const latestServiceFeeRate = Number(feeRate?.service_fee?.service_fee_rate || 0);
-
-          const prevMaterialTax = Number(String(tax_rate_material || '0').replace(/[+%]/g, ''));
-          const prevServiceTax = Number(String(tax_rate_service_fee || '0').replace(/[+%]/g, ''));
-          const prevServiceFee = Number(String(service_fee_rate || '0').replace(/[+%]/g, ''));
-
-          const mismatches: string[] = [];
-
-          if (latest_price_per_gram !== Number(price_per_gram))
-            mismatches.push(`Price per gram mismatch: expected ₹${latest_price_per_gram}, received ₹${price_per_gram}`);
-
-          if (latestMaterialTaxRate !== prevMaterialTax)
-            mismatches.push(`Material tax mismatch: expected ${latestMaterialTaxRate}%, received ${prevMaterialTax}%`);
-
-          if (latestServiceTaxRate !== prevServiceTax)
-            mismatches.push(`Service tax mismatch: expected ${latestServiceTaxRate}%, received ${prevServiceTax}%`);
-
-          if (latestServiceFeeRate !== prevServiceFee)
-            mismatches.push(
-              `Service fee rate mismatch: expected ${latestServiceFeeRate}%, received ${prevServiceFee}%`,
-            );
-
-          if (mismatches.length > 0) {
-            responseData = prepareJSONResponse(
-              {
-                recheck_required: true,
-                mismatch_summary: mismatches,
-                latest_values: {
-                  price_per_gram: latest_price_per_gram,
-                  tax_rate_material: latestMaterialTaxRate,
-                  tax_rate_service_fee: latestServiceTaxRate,
-                  service_fee_rate: latestServiceFeeRate,
-                },
-              },
-              'Rate integrity failed — please regenerate preview.',
-              statusCodes.FORBIDDEN,
-            );
-            return res.status(responseData.status).json(responseData);
-          }
-
-          const grams_purchased = Number((amountNum / latest_price_per_gram).toFixed(6));
-          const service_fee = Number(((amountNum * latestServiceFeeRate) / 100).toFixed(2));
-          const tax_on_material = Number(((amountNum * latestMaterialTaxRate) / 100).toFixed(2));
-          const tax_on_service = Number(((service_fee * latestServiceTaxRate) / 100).toFixed(2));
-          const total_tax_amount = Number((tax_on_material + tax_on_service).toFixed(2));
-          const recalculated_total = Number((amountNum + service_fee + total_tax_amount).toFixed(2));
-
-          if (Number(total_amount) !== recalculated_total) {
-            responseData = prepareJSONResponse(
-              {},
-              `Integrity check failed — total mismatch. Expected ₹${recalculated_total}, received ₹${total_amount}`,
-              statusCodes.BAD_REQUEST,
-            );
-            return res.status(responseData.status).json(responseData);
-          }
-
-          const newPurchase = await this.digitalPurchaseModel.create({
-            customer_id,
-            transaction_type_id: 1,
-            material_id: materialIdNum,
-            amount: amountNum,
-            price_per_gram: latest_price_per_gram,
-            grams_purchased,
-            tax_rate_material: `+${latestMaterialTaxRate}%`,
-            tax_amount_material: tax_on_material,
-            tax_rate_service: `+${latestServiceTaxRate}%`,
-            tax_amount_service: tax_on_service,
-            total_tax_amount,
-            service_fee_rate: `+${latestServiceFeeRate}%`,
-            service_fee,
-            total_amount: recalculated_total,
-            purchase_status: 1,
-            rate_timestamp: preview_generated_at,
-          });
-          logger.info(
-            `createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`,
-          );
-
-          const lastLedger = await this.digitalHoldingModel.findOne({
-            where: {
-              customer_id,
-              material_id: materialIdNum,
-            },
-            order: [['id', 'DESC']],
-          });
-
-          const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
-          const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
-
-          const newHolding = await this.digitalHoldingModel.create({
-            customer_id,
-            material_id: materialIdNum,
-            purchase_id: newPurchase.id,
-            redeem_id: null,
-            transaction_type_id: 1,
-            grams: grams_purchased,
-            running_total_grams: updatedBalance,
-          });
-          logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${newHolding}`);
-          responseData = prepareJSONResponse(
-            { purchase_code: newPurchase?.purchase_code, running_total_grams: newHolding?.running_total_grams },
-            'Success',
-            statusCodes.OK,
-          );
-        } catch (error) {
-          logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
-          responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
-        }
-      }
+      responseData = prepareJSONResponse(
+        {},
+        `Missing required fields: ${missingFields.join(', ')}`,
+        statusCodes.BAD_REQUEST,
+      );
+      return res.status(responseData.status).json(responseData);
     }
 
-    logger.info(
-      `createDigitalPurchase - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-    );
+    if (role_id !== predefinedRoles.User.id) {
+      responseData = prepareJSONResponse({}, 'Not allowed for this role.', statusCodes.FORBIDDEN);
+      return res.status(responseData.status).json(responseData);
+    }
+
+    const transaction = await this.digitalPurchaseModel.sequelize.transaction();
+
+    try {
+      const {
+        customer_id,
+        material_id,
+        amount,
+        date,
+        price_per_gram,
+        tax_rate_material,
+        tax_rate_service_fee,
+        service_fee_rate,
+        total_amount,
+        preview_generated_at,
+      } = requestBody;
+
+      const materialIdNum = Number(material_id);
+      const amountNum = Number(amount);
+
+      const recordExists = await this.usersModel.findOne({
+        where: {
+          id: customer_id,
+          role_id: role_id,
+          is_deactivated: 0,
+          status: 1,
+        },
+        transaction,
+      });
+
+      if (!recordExists) {
+        await transaction.rollback();
+        responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const previewTime = new Date(preview_generated_at);
+      const diffMinutes = (Date.now() - previewTime.getTime()) / 60000;
+      if (diffMinutes > 5) {
+        await transaction.rollback();
+        responseData = prepareJSONResponse(
+          {},
+          'Preview expired. Please refresh rates before proceeding.',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const livePrice = await this.getLiveMaterialPrice(materialIdNum);
+      if (!livePrice.live_price) {
+        await transaction.rollback();
+        responseData = prepareJSONResponse({}, 'Material price not found', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const latest_price_per_gram = await this.safeNum(livePrice.live_price.price_per_gram);
+      const appliedDate = date;
+
+      const materialTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 1);
+      const serviceTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 2);
+      const feeRate = await this.getApplicableServiceFeeRate(materialIdNum, amountNum, appliedDate);
+
+      const latestMaterialTaxRate = Number(materialTax?.latest_tax?.tax_percentage || 0);
+      const latestServiceTaxRate = Number(serviceTax?.latest_tax?.tax_percentage || 0);
+      const latestServiceFeeRate = Number(feeRate?.service_fee?.service_fee_rate || 0);
+
+      const prevMaterialTax = Number(String(tax_rate_material || '0').replace(/[+%]/g, ''));
+      const prevServiceTax = Number(String(tax_rate_service_fee || '0').replace(/[+%]/g, ''));
+      const prevServiceFee = Number(String(service_fee_rate || '0').replace(/[+%]/g, ''));
+
+      const mismatches: string[] = [];
+
+      if (latest_price_per_gram !== Number(price_per_gram))
+        mismatches.push(`Price per gram mismatch: expected ₹${latest_price_per_gram}, received ₹${price_per_gram}`);
+
+      if (latestMaterialTaxRate !== prevMaterialTax)
+        mismatches.push(`Material tax mismatch: expected ${latestMaterialTaxRate}%, received ${prevMaterialTax}%`);
+
+      if (latestServiceTaxRate !== prevServiceTax)
+        mismatches.push(`Service tax mismatch: expected ${latestServiceTaxRate}%, received ${prevServiceTax}%`);
+
+      if (latestServiceFeeRate !== prevServiceFee)
+        mismatches.push(`Service fee rate mismatch: expected ${latestServiceFeeRate}%, received ${prevServiceFee}%`);
+
+      if (mismatches.length > 0) {
+        responseData = prepareJSONResponse(
+          {
+            recheck_required: true,
+            mismatch_summary: mismatches,
+            latest_values: {
+              price_per_gram: latest_price_per_gram,
+              tax_rate_material: latestMaterialTaxRate,
+              tax_rate_service_fee: latestServiceTaxRate,
+              service_fee_rate: latestServiceFeeRate,
+            },
+          },
+          'Rate integrity failed — please regenerate preview.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const grams_purchased = Number((amountNum / latest_price_per_gram).toFixed(6));
+      const service_fee = Number(((amountNum * latestServiceFeeRate) / 100).toFixed(2));
+      const tax_on_material = Number(((amountNum * latestMaterialTaxRate) / 100).toFixed(2));
+      const tax_on_service = Number(((service_fee * latestServiceTaxRate) / 100).toFixed(2));
+      const total_tax_amount = Number((tax_on_material + tax_on_service).toFixed(2));
+      const recalculated_total = Number((amountNum + service_fee + total_tax_amount).toFixed(2));
+
+      if (Number(total_amount) !== recalculated_total) {
+        responseData = prepareJSONResponse(
+          {},
+          `Integrity check failed — total mismatch. Expected ₹${recalculated_total}, received ₹${total_amount}`,
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const newPurchase = await this.digitalPurchaseModel.create(
+        {
+          customer_id,
+          transaction_type_id: 1,
+          material_id: materialIdNum,
+          amount: amountNum,
+          price_per_gram: latest_price_per_gram,
+          grams_purchased,
+          tax_rate_material: `+${latestMaterialTaxRate}%`,
+          tax_amount_material: tax_on_material,
+          tax_rate_service: `+${latestServiceTaxRate}%`,
+          tax_amount_service: tax_on_service,
+          total_tax_amount,
+          service_fee_rate: `+${latestServiceFeeRate}%`,
+          service_fee,
+          total_amount: recalculated_total,
+          purchase_status: 1,
+          payment_status: 1,
+          rate_timestamp: preview_generated_at,
+        },
+        { transaction },
+      );
+
+      const razorpay = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+
+      const order = razorpay.orders.create({
+        amount: Math.round(recalculated_total * 100),
+        currency: 'INR',
+        receipt: newPurchase.purchase_code,
+        payment_capture: true,
+      });
+
+      newPurchase.razorpay_order_id = (await order).id;
+
+      await newPurchase.save({ transaction });
+
+      logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
+
+      const lastLedger = await this.digitalHoldingModel.findOne({
+        where: {
+          customer_id,
+          material_id: materialIdNum,
+        },
+        order: [['id', 'DESC']],
+      });
+
+      const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
+      const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
+
+      const newHolding = await this.digitalHoldingModel.create(
+        {
+          customer_id,
+          material_id: materialIdNum,
+          purchase_id: newPurchase.id,
+          redeem_id: null,
+          transaction_type_id: 1,
+          grams: grams_purchased,
+          running_total_grams: updatedBalance,
+        },
+        { transaction },
+      );
+      logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${newHolding}`);
+
+      responseData = prepareJSONResponse(
+        {
+          purchase_code: newPurchase.purchase_code,
+          razorpay_order_id: (await order).id,
+          razorpay_key_id: process.env.RAZORPAY_KEY_ID,
+          amount: recalculated_total,
+        },
+        'Success',
+        statusCodes.OK,
+      );
+    } catch (error) {
+      logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
     return res.status(responseData.status).json(responseData);
+  }
+
+  async verifyPayment(req: Request, res: Response) {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res
+        .status(statusCodes.BAD_REQUEST)
+        .json(prepareJSONResponse({}, 'Missing required fields', statusCodes.BAD_REQUEST));
+    }
+
+    try {
+      const generatedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (generatedSignature !== razorpay_signature) {
+        logger.error('verifyPayment - Invalid signature mismatch');
+        return res
+          .status(statusCodes.BAD_REQUEST)
+          .json(prepareJSONResponse({}, 'Signature verification failed', statusCodes.BAD_REQUEST));
+      }
+
+      const purchase = await this.digitalPurchaseModel.findOne({
+        where: { razorpay_order_id },
+      });
+
+      if (!purchase) {
+        return res
+          .status(statusCodes.NOT_FOUND)
+          .json(prepareJSONResponse({}, 'Purchase not found', statusCodes.NOT_FOUND));
+      }
+
+      if (purchase.payment_status === 2) {
+        return res
+          .status(statusCodes.OK)
+          .json(prepareJSONResponse({ purchase_code: purchase.purchase_code }, 'Already verified', statusCodes.OK));
+      }
+
+      purchase.razorpay_payment_id = razorpay_payment_id;
+      purchase.razorpay_signature = razorpay_signature;
+      purchase.payment_status = 2;
+      purchase.purchase_status = 2;
+
+      await purchase.save();
+
+      logger.info(`verifyPayment - Payment successful for order ${razorpay_order_id}`);
+
+      return res.status(statusCodes.OK).json(
+        prepareJSONResponse(
+          {
+            purchase_code: purchase.purchase_code,
+            order: purchase,
+          },
+          'Payment verified successfully',
+          statusCodes.OK,
+        ),
+      );
+    } catch (error) {
+      logger.error('verifyPayment - Error:', error);
+      return res
+        .status(statusCodes.INTERNAL_SERVER_ERROR)
+        .json(prepareJSONResponse({}, 'Server error', statusCodes.INTERNAL_SERVER_ERROR));
+    }
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -697,5 +796,128 @@ export default class DigitalPurchaseController {
       `getAllCustomersDigitalPurchases - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async handleRazorpayWebhook(req: Request, res: Response) {
+    try {
+      const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET!;
+      const signature = req.headers['x-razorpay-signature'] as string;
+
+      if (!signature) {
+        razorpayWebhookLogger.error('Webhook signature missing');
+        return res.status(400).send('Signature missing');
+      }
+
+      const rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
+
+      const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+
+      if (expectedSignature !== signature) {
+        razorpayWebhookLogger.error('Invalid webhook signature');
+        return res.status(400).send('Invalid signature');
+      }
+
+      const webhookData = JSON.parse(rawBody);
+      const event = webhookData.event;
+
+      razorpayWebhookLogger.info(`Webhook received: ${event}`);
+
+      const payment = webhookData.payload?.payment?.entity;
+      const order = webhookData.payload?.order?.entity;
+
+      switch (event) {
+        case 'payment.captured':
+          await this._updatePaymentCaptured(payment);
+          break;
+
+        case 'payment.failed':
+          await this._updatePaymentFailed(payment);
+          break;
+
+        case 'order.paid':
+          await this._updateOrderPaid(order);
+          break;
+
+        default:
+          razorpayWebhookLogger.info(`Unhandled event ${event}`);
+      }
+
+      return res.status(200).send('OK');
+    } catch (error) {
+      razorpayWebhookLogger.error('Webhook processing error', error);
+      return res.status(500).send('Server error');
+    }
+  }
+
+  // Helpers
+  async _updatePaymentCaptured(payment: any) {
+    try {
+      const { id, order_id } = payment;
+
+      const purchase = await this.digitalPurchaseModel.findOne({
+        where: { razorpay_order_id: order_id },
+      });
+
+      if (!purchase) {
+        razorpayWebhookLogger.error(`No purchase found for order ${order_id}`);
+        return;
+      }
+
+      if (purchase.payment_status === 2) {
+        razorpayWebhookLogger.info(`Payment already captured for ${order_id}`);
+        return;
+      }
+
+      purchase.payment_status = 2;
+      purchase.purchase_status = 2;
+      purchase.razorpay_payment_id = id;
+      purchase.remarks = 'Payment captured via webhook';
+
+      await purchase.save();
+      razorpayWebhookLogger.info(`Payment captured saved for order ${order_id}`);
+    } catch (error) {
+      razorpayWebhookLogger.error('_updatePaymentCaptured Error:', error);
+    }
+  }
+
+  async _updatePaymentFailed(payment: any) {
+    try {
+      const { order_id, error_description } = payment;
+
+      const purchase = await this.digitalPurchaseModel.findOne({
+        where: { razorpay_order_id: order_id },
+      });
+
+      if (!purchase) return;
+
+      purchase.payment_status = 3;
+      purchase.purchase_status = 3;
+      purchase.remarks = error_description || 'Payment failed';
+
+      await purchase.save();
+      razorpayWebhookLogger.info(`Payment failed stored for order ${order_id}`);
+    } catch (error) {
+      razorpayWebhookLogger.error('_updatePaymentFailed Error:', error);
+    }
+  }
+
+  async _updateOrderPaid(order: any) {
+    try {
+      const purchase = await this.digitalPurchaseModel.findOne({
+        where: { razorpay_order_id: order.id },
+      });
+
+      if (!purchase) return;
+
+      purchase.payment_status = 2;
+      purchase.purchase_status = 2;
+      purchase.remarks = 'Order paid';
+
+      await purchase.save();
+      razorpayWebhookLogger.info(`Order paid synced for order ${order.id}`);
+    } catch (error) {
+      razorpayWebhookLogger.error('_updateOrderPaid Error:', error);
+    }
   }
 }
