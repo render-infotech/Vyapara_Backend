@@ -1,0 +1,31 @@
+digital_purchase:
+  handler: src/routes/digital_purchase/v1/index.digital_purchase
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/digital-purchase
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
+    - http:
+        path: /v1/digital-purchase/{proxy+}
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
