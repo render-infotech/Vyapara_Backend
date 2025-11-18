@@ -360,171 +360,177 @@ export default class DigitalPurchaseController {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
-      try {
-        const {
-          customer_id,
-          material_id,
-          amount,
-          date,
-          price_per_gram,
-          tax_rate_material,
-          tax_rate_service_fee,
-          service_fee_rate,
-          total_amount,
-          preview_generated_at,
-        } = requestBody;
+      if (role_id !== predefinedRoles.User.id) {
+        responseData = prepareJSONResponse({}, 'Not allowed for this role.', statusCodes.FORBIDDEN);
+      } else {
+        try {
+          const {
+            customer_id,
+            material_id,
+            amount,
+            date,
+            price_per_gram,
+            tax_rate_material,
+            tax_rate_service_fee,
+            service_fee_rate,
+            total_amount,
+            preview_generated_at,
+          } = requestBody;
 
-        const materialIdNum = Number(material_id);
-        const amountNum = Number(amount);
+          const materialIdNum = Number(material_id);
+          const amountNum = Number(amount);
 
-        const recordExists = await this.usersModel.findOne({
-          where: {
-            id: customer_id,
-            role_id: role_id,
-            is_deactivated: 0,
-            status: 1,
-          },
-        });
+          const recordExists = await this.usersModel.findOne({
+            where: {
+              id: customer_id,
+              role_id: role_id,
+              is_deactivated: 0,
+              status: 1,
+            },
+          });
 
-        if (!recordExists) {
-          responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
-          return res.status(responseData.status).json(responseData);
-        }
+          if (!recordExists) {
+            responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
+            return res.status(responseData.status).json(responseData);
+          }
 
-        if (preview_generated_at) {
-          const previewTime = new Date(preview_generated_at);
-          const diffMs = Date.now() - previewTime.getTime();
-          const diffMinutes = diffMs / 60000;
-          if (diffMinutes > 5) {
+          if (preview_generated_at) {
+            const previewTime = new Date(preview_generated_at);
+            const diffMs = Date.now() - previewTime.getTime();
+            const diffMinutes = diffMs / 60000;
+            if (diffMinutes > 5) {
+              responseData = prepareJSONResponse(
+                {},
+                'Preview expired. Please refresh rates before proceeding.',
+                statusCodes.BAD_REQUEST,
+              );
+              return res.status(responseData.status).json(responseData);
+            }
+          }
+
+          const livePrice = await this.getLiveMaterialPrice(materialIdNum);
+          if (!livePrice.live_price) {
+            responseData = prepareJSONResponse({}, 'Material price not found', statusCodes.NOT_FOUND);
+            return res.status(responseData.status).json(responseData);
+          }
+
+          const latest_price_per_gram = await this.safeNum(livePrice.live_price.price_per_gram);
+          const appliedDate = date;
+
+          const materialTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 1);
+          const serviceTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 2);
+          const feeRate = await this.getApplicableServiceFeeRate(materialIdNum, amountNum, appliedDate);
+
+          const latestMaterialTaxRate = Number(materialTax?.latest_tax?.tax_percentage || 0);
+          const latestServiceTaxRate = Number(serviceTax?.latest_tax?.tax_percentage || 0);
+          const latestServiceFeeRate = Number(feeRate?.service_fee?.service_fee_rate || 0);
+
+          const prevMaterialTax = Number(String(tax_rate_material || '0').replace(/[+%]/g, ''));
+          const prevServiceTax = Number(String(tax_rate_service_fee || '0').replace(/[+%]/g, ''));
+          const prevServiceFee = Number(String(service_fee_rate || '0').replace(/[+%]/g, ''));
+
+          const mismatches: string[] = [];
+
+          if (latest_price_per_gram !== Number(price_per_gram))
+            mismatches.push(`Price per gram mismatch: expected ₹${latest_price_per_gram}, received ₹${price_per_gram}`);
+
+          if (latestMaterialTaxRate !== prevMaterialTax)
+            mismatches.push(`Material tax mismatch: expected ${latestMaterialTaxRate}%, received ${prevMaterialTax}%`);
+
+          if (latestServiceTaxRate !== prevServiceTax)
+            mismatches.push(`Service tax mismatch: expected ${latestServiceTaxRate}%, received ${prevServiceTax}%`);
+
+          if (latestServiceFeeRate !== prevServiceFee)
+            mismatches.push(
+              `Service fee rate mismatch: expected ${latestServiceFeeRate}%, received ${prevServiceFee}%`,
+            );
+
+          if (mismatches.length > 0) {
+            responseData = prepareJSONResponse(
+              {
+                recheck_required: true,
+                mismatch_summary: mismatches,
+                latest_values: {
+                  price_per_gram: latest_price_per_gram,
+                  tax_rate_material: latestMaterialTaxRate,
+                  tax_rate_service_fee: latestServiceTaxRate,
+                  service_fee_rate: latestServiceFeeRate,
+                },
+              },
+              'Rate integrity failed — please regenerate preview.',
+              statusCodes.FORBIDDEN,
+            );
+            return res.status(responseData.status).json(responseData);
+          }
+
+          const grams_purchased = Number((amountNum / latest_price_per_gram).toFixed(6));
+          const service_fee = Number(((amountNum * latestServiceFeeRate) / 100).toFixed(2));
+          const tax_on_material = Number(((amountNum * latestMaterialTaxRate) / 100).toFixed(2));
+          const tax_on_service = Number(((service_fee * latestServiceTaxRate) / 100).toFixed(2));
+          const total_tax_amount = Number((tax_on_material + tax_on_service).toFixed(2));
+          const recalculated_total = Number((amountNum + service_fee + total_tax_amount).toFixed(2));
+
+          if (Number(total_amount) !== recalculated_total) {
             responseData = prepareJSONResponse(
               {},
-              'Preview expired. Please refresh rates before proceeding.',
+              `Integrity check failed — total mismatch. Expected ₹${recalculated_total}, received ₹${total_amount}`,
               statusCodes.BAD_REQUEST,
             );
             return res.status(responseData.status).json(responseData);
           }
-        }
 
-        const livePrice = await this.getLiveMaterialPrice(materialIdNum);
-        if (!livePrice.live_price) {
-          responseData = prepareJSONResponse({}, 'Material price not found', statusCodes.NOT_FOUND);
-          return res.status(responseData.status).json(responseData);
-        }
+          const newPurchase = await this.digitalPurchaseModel.create({
+            customer_id,
+            transaction_type_id: 1,
+            material_id: materialIdNum,
+            amount: amountNum,
+            price_per_gram: latest_price_per_gram,
+            grams_purchased,
+            tax_rate_material: `+${latestMaterialTaxRate}%`,
+            tax_amount_material: tax_on_material,
+            tax_rate_service: `+${latestServiceTaxRate}%`,
+            tax_amount_service: tax_on_service,
+            total_tax_amount,
+            service_fee_rate: `+${latestServiceFeeRate}%`,
+            service_fee,
+            total_amount: recalculated_total,
+            purchase_status: 1,
+            rate_timestamp: preview_generated_at,
+          });
+          logger.info(
+            `createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`,
+          );
 
-        const latest_price_per_gram = await this.safeNum(livePrice.live_price.price_per_gram);
-        const appliedDate = date;
-
-        const materialTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 1);
-        const serviceTax = await this.getLatestAppliedTaxRate(materialIdNum, appliedDate, 2);
-        const feeRate = await this.getApplicableServiceFeeRate(materialIdNum, amountNum, appliedDate);
-
-        const latestMaterialTaxRate = Number(materialTax?.latest_tax?.tax_percentage || 0);
-        const latestServiceTaxRate = Number(serviceTax?.latest_tax?.tax_percentage || 0);
-        const latestServiceFeeRate = Number(feeRate?.service_fee?.service_fee_rate || 0);
-
-        const prevMaterialTax = Number(String(tax_rate_material || '0').replace(/[+%]/g, ''));
-        const prevServiceTax = Number(String(tax_rate_service_fee || '0').replace(/[+%]/g, ''));
-        const prevServiceFee = Number(String(service_fee_rate || '0').replace(/[+%]/g, ''));
-
-        const mismatches: string[] = [];
-
-        if (latest_price_per_gram !== Number(price_per_gram))
-          mismatches.push(`Price per gram mismatch: expected ₹${latest_price_per_gram}, received ₹${price_per_gram}`);
-
-        if (latestMaterialTaxRate !== prevMaterialTax)
-          mismatches.push(`Material tax mismatch: expected ${latestMaterialTaxRate}%, received ${prevMaterialTax}%`);
-
-        if (latestServiceTaxRate !== prevServiceTax)
-          mismatches.push(`Service tax mismatch: expected ${latestServiceTaxRate}%, received ${prevServiceTax}%`);
-
-        if (latestServiceFeeRate !== prevServiceFee)
-          mismatches.push(`Service fee rate mismatch: expected ${latestServiceFeeRate}%, received ${prevServiceFee}%`);
-
-        if (mismatches.length > 0) {
-          responseData = prepareJSONResponse(
-            {
-              recheck_required: true,
-              mismatch_summary: mismatches,
-              latest_values: {
-                price_per_gram: latest_price_per_gram,
-                tax_rate_material: latestMaterialTaxRate,
-                tax_rate_service_fee: latestServiceTaxRate,
-                service_fee_rate: latestServiceFeeRate,
-              },
+          const lastLedger = await this.digitalHoldingModel.findOne({
+            where: {
+              customer_id,
+              material_id: materialIdNum,
             },
-            'Rate integrity failed — please regenerate preview.',
-            statusCodes.FORBIDDEN,
-          );
-          return res.status(responseData.status).json(responseData);
-        }
+            order: [['id', 'DESC']],
+          });
 
-        const grams_purchased = Number((amountNum / latest_price_per_gram).toFixed(6));
-        const service_fee = Number(((amountNum * latestServiceFeeRate) / 100).toFixed(2));
-        const tax_on_material = Number(((amountNum * latestMaterialTaxRate) / 100).toFixed(2));
-        const tax_on_service = Number(((service_fee * latestServiceTaxRate) / 100).toFixed(2));
-        const total_tax_amount = Number((tax_on_material + tax_on_service).toFixed(2));
-        const recalculated_total = Number((amountNum + service_fee + total_tax_amount).toFixed(2));
+          const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
+          const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
 
-        if (Number(total_amount) !== recalculated_total) {
-          responseData = prepareJSONResponse(
-            {},
-            `Integrity check failed — total mismatch. Expected ₹${recalculated_total}, received ₹${total_amount}`,
-            statusCodes.BAD_REQUEST,
-          );
-          return res.status(responseData.status).json(responseData);
-        }
-
-        const newPurchase = await this.digitalPurchaseModel.create({
-          customer_id,
-          transaction_type_id: 1,
-          material_id: materialIdNum,
-          amount: amountNum,
-          price_per_gram: latest_price_per_gram,
-          grams_purchased,
-          tax_rate_material: `+${latestMaterialTaxRate}%`,
-          tax_amount_material: tax_on_material,
-          tax_rate_service: `+${latestServiceTaxRate}%`,
-          tax_amount_service: tax_on_service,
-          total_tax_amount,
-          service_fee_rate: `+${latestServiceFeeRate}%`,
-          service_fee,
-          total_amount: recalculated_total,
-          purchase_status: 1,
-          rate_timestamp: preview_generated_at,
-        });
-        logger.info(
-          `createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`,
-        );
-
-        const lastLedger = await this.digitalHoldingModel.findOne({
-          where: {
+          const newHolding = await this.digitalHoldingModel.create({
             customer_id,
             material_id: materialIdNum,
-          },
-          order: [['id', 'DESC']],
-        });
-
-        const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
-        const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
-
-        const newHolding = await this.digitalHoldingModel.create({
-          customer_id,
-          material_id: materialIdNum,
-          purchase_id: newPurchase.id,
-          redeem_id: null,
-          transaction_type_id: 1,
-          grams: grams_purchased,
-          running_total_grams: updatedBalance,
-        });
-        logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${newHolding}`);
-        responseData = prepareJSONResponse(
-          { purchase_code: newPurchase?.purchase_code, running_total_grams: newHolding?.running_total_grams },
-          'Success',
-          statusCodes.OK,
-        );
-      } catch (error) {
-        logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
-        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+            purchase_id: newPurchase.id,
+            redeem_id: null,
+            transaction_type_id: 1,
+            grams: grams_purchased,
+            running_total_grams: updatedBalance,
+          });
+          logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${newHolding}`);
+          responseData = prepareJSONResponse(
+            { purchase_code: newPurchase?.purchase_code, running_total_grams: newHolding?.running_total_grams },
+            'Success',
+            statusCodes.OK,
+          );
+        } catch (error) {
+          logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
+          responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+        }
       }
     }
 

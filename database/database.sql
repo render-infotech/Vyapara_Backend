@@ -152,25 +152,6 @@ CREATE TABLE IF NOT EXISTS `service_fee_rate` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Table for storing service fee rates';
 
 
--- Created new table for products - by Shubham
-CREATE TABLE IF NOT EXISTS `products` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key of the product',
-  `material_id` INT NOT NULL COMMENT '1 = Gold, 2 = Silver',
-  `product_name` VARCHAR(200) NOT NULL COMMENT 'Name of the product',
-  `weight_in_grams` DECIMAL(10,3) NOT NULL COMMENT 'Weight of the product in grams',
-  `purity` VARCHAR(20) NOT NULL DEFAULT '24K' COMMENT '24K, 999, 916',
-  `icon` TEXT DEFAULT NULL COMMENT 'The product icon URL',
-  `making_charges` DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Making charges for the product',
-  `description` TEXT DEFAULT NULL COMMENT 'Optional description of the product',
-  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 = Active, 0 = Inactive',
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB
-COMMENT='Products list table';
-
-
-
 -- Created new table for digital purchases - by Shubham
 CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the purchase',
@@ -202,6 +183,22 @@ CREATE TABLE IF NOT EXISTS `digital_purchase` (
 COMMENT='Digital gold/silver purchase records table';
 
 
+-- Created new table for products - by Shubham
+CREATE TABLE IF NOT EXISTS `products` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key of the product',
+  `material_id` INT NOT NULL COMMENT '1 = Gold, 2 = Silver',
+  `product_name` VARCHAR(200) NOT NULL COMMENT 'Name of the product',
+  `weight_in_grams` DECIMAL(10,3) NOT NULL COMMENT 'Weight of the product in grams',
+  `purity` VARCHAR(20) NOT NULL DEFAULT '24K' COMMENT '24K, 999, 916',
+  `icon` TEXT DEFAULT NULL COMMENT 'The product icon URL',
+  `making_charges` DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Making charges for the product',
+  `description` TEXT DEFAULT NULL COMMENT 'Optional description of the product',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 = Active, 0 = Inactive',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB
+COMMENT='Products list table';
 
 
 -- Created new table for digital holdings - by Shubham
