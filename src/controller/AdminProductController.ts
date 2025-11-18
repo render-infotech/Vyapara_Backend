@@ -86,9 +86,7 @@ export default class AdminProductController {
       const limit = requestBody?.limit ? Number(requestBody?.limit) : 15;
       const page = requestBody?.page ? Number(requestBody?.page) : 1;
       const offset = (page - 1) * limit;
-      const productWhere: any = {
-        status: 1,
-      };
+      const productWhere: any = {};
       if (requestBody.material_id) {
         productWhere.material_id = Number(requestBody.material_id);
       }
