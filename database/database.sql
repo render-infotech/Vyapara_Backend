@@ -152,6 +152,23 @@ CREATE TABLE IF NOT EXISTS `service_fee_rate` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Table for storing service fee rates';
 
 
+-- Created new table for products - by Shubham
+CREATE TABLE IF NOT EXISTS `products` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key of the product',
+  `material_id` INT NOT NULL COMMENT '1 = Gold, 2 = Silver',
+  `product_name` VARCHAR(200) NOT NULL COMMENT 'Name of the product',
+  `weight_in_grams` DECIMAL(10,3) NOT NULL COMMENT 'Weight of the product in grams',
+  `purity` VARCHAR(20) NOT NULL DEFAULT '24K' COMMENT '24K, 999, 916',
+  `icon` TEXT DEFAULT NULL COMMENT 'The product icon URL',
+  `making_charges` DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Making charges for the product',
+  `description` TEXT DEFAULT NULL COMMENT 'Optional description of the product',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 = Active, 0 = Inactive',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB
+COMMENT='Products list table';
+
 
 
 -- Created new table for digital purchases - by Shubham
@@ -164,29 +181,51 @@ CREATE TABLE IF NOT EXISTS `digital_purchase` (
   `amount` DECIMAL(15,2) NOT NULL COMMENT 'Base amount entered by customer (excluding taxes)',
   `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram at purchase time',
   `grams_purchased` DECIMAL(15,6) NOT NULL COMMENT 'Grams calculated = amount / price_per_gram',
-
   `tax_rate_material` VARCHAR(10) NOT NULL COMMENT 'Tax rate applied on material (e.g. +5%)',
   `tax_amount_material` DECIMAL(15,2) NOT NULL COMMENT 'Tax amount calculated on material',
   `tax_rate_service` VARCHAR(10) NOT NULL COMMENT 'Tax rate applied on service (e.g. +16%)',
   `tax_amount_service` DECIMAL(15,2) NOT NULL COMMENT 'Tax amount calculated on service',
   `total_tax_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total combined tax (material + service)',
-
   `service_fee_rate` VARCHAR(10) NOT NULL DEFAULT '0.0' COMMENT 'Service fee rate (%) as string',
   `service_fee` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Service fee amount',
   `total_amount` DECIMAL(15,2) NOT NULL COMMENT 'Total amount including tax, commission, and service charge',
-
   `purchase_status` INT NOT NULL DEFAULT 1 COMMENT 'Purchase status (1 = Pending, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = Refunded)',
   `rate_timestamp` DATETIME NOT NULL COMMENT 'Timestamp when the rate was fetched',
   `remarks` TEXT DEFAULT NULL COMMENT 'Optional remarks or notes about the transaction',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
-
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_digital_purchase_user`
     FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB
 COMMENT='Digital gold/silver purchase records table';
+
+
+
+
+-- Created new table for digital holdings - by Shubham
+CREATE TABLE IF NOT EXISTS `digital_holdings` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key of the entry',
+  `customer_id` BIGINT NOT NULL COMMENT 'Customer owning this holding entry',
+  `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
+  `purchase_id` BIGINT DEFAULT NULL COMMENT 'Reference to digital purchase (for BUY)',
+  `redeem_id` BIGINT DEFAULT NULL COMMENT 'Reference to physical redeem (for REDEEM)',
+  `transaction_type_id` INT NOT NULL COMMENT 'Transaction type (1 = Buy, 2 = Deposit, 3 = Redeem)',
+  `grams` DECIMAL(15,6) NOT NULL COMMENT 'Positive for buy, negative for redeem',
+  `running_total_grams` DECIMAL(15,6) NOT NULL COMMENT 'Updated balance after this entry',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_digital_holdings_user`
+    FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE,
+  CONSTRAINT `fk_digital_holdings_purchase`
+    FOREIGN KEY (`purchase_id`) REFERENCES `digital_purchase`(`id`)
+    ON DELETE SET NULL
+) ENGINE=InnoDB
+COMMENT='Unified data for digital gold/silver holdings';
+
 
 
 

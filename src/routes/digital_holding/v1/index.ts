@@ -1,7 +1,7 @@
 import serverless from 'serverless-http';
 import app from '../../../utils/express.js';
 import { sequelize } from '../../../utils/database.js';
-import CustomerController from '../../../controller/CustomerController';
+import DigitalHoldingController from '../../../controller/DigitalHoldingController';
 import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
@@ -10,7 +10,7 @@ import DigitalHoldingModel from '../../../models/digitalHolding';
 import MaterialRateModel from '../../../models/materialRate';
 import TaxRateModel from '../../../models/taxRate';
 import ServiceFeeRateModel from '../../../models/serviceFeeRate';
-import ControllerRoutes from './customers';
+import ControllerRoutes from './digital_holding';
 
 const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
@@ -32,7 +32,7 @@ CustomerAddress.associate({ Users, CustomerDetails });
 DigitalPurchase.associate({ Users, DigitalHolding });
 DigitalHolding.associate({ Users, DigitalPurchase });
 
-const customerController = new CustomerController(
+const digitalHoldingController = new DigitalHoldingController(
   Users,
   CustomerDetails,
   CustomerAddress,
@@ -43,9 +43,9 @@ const customerController = new CustomerController(
   DigitalHolding,
 );
 
-const customerControllerRoutes = ControllerRoutes(customerController);
+const digitalHoldingControllerRoutes = ControllerRoutes(digitalHoldingController);
 
-app.use('/v1/customer', customerControllerRoutes);
+app.use('/v1/digital-holding', digitalHoldingControllerRoutes);
 
 export default serverless(app);
-exports.customers = serverless(app);
+exports.digital_holding = serverless(app);

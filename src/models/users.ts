@@ -3,6 +3,7 @@ import CustomerDetails from './customerDetails';
 import CustomerAddress from './customerAddress';
 import VendorDetails from './vendorDetails';
 import DigitalPurchase from './digitalPurchase';
+import DigitalHolding from './digitalHolding';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -89,6 +90,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
   };
 
   /**
@@ -109,10 +113,18 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     if (models.hasOwnProperty('VendorDetails')) {
       this.hasOne(models.VendorDetails, { foreignKey: 'vendor_id', as: 'vendorDetails' });
     }
+    // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('DigitalPurchase')) {
       this.hasMany(models.DigitalPurchase, {
         foreignKey: 'customer_id',
         as: 'digitalPurchase',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('DigitalHoldings')) {
+      this.hasMany(models.DigitalHoldings, {
+        foreignKey: 'customer_id',
+        as: 'digitalHoldings',
       });
     }
   }

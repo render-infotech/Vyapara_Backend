@@ -1,0 +1,31 @@
+digital_holding:
+  handler: src/routes/digital_holding/v1/index.digital_holding
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/digital-holding
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
+    - http:
+        path: /v1/digital-holding/{proxy+}
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
