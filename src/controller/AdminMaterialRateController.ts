@@ -31,6 +31,35 @@ export default class AdminMaterialRateController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async convertToIST(dateString: string) {
+    try {
+      if (!dateString) return null;
+
+      const date = new Date(dateString);
+
+      if (isNaN(date.getTime())) {
+        logger.error(`convertToIST: Invalid date string received -> ${dateString}`);
+        return null;
+      }
+
+      const istString = date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+      });
+
+      const [datePart, timePart] = istString.split(', ');
+
+      return {
+        date: datePart,
+        time: timePart,
+      };
+    } catch (error: any) {
+      logger.error(`convertToIST error: ${error.message}`, { error });
+      return null;
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async materialRateHistory(records = []) {
     const historyResult: any = {};
 
@@ -45,10 +74,8 @@ export default class AdminMaterialRateController {
     const formattedHistory = await Promise.all(
       records.map(async (rate, index) => {
         const price = await this.safeNum(rate.price_per_gram);
-        const createdAt = new Date(rate.created_at);
 
-        const date = createdAt.toISOString().split('T')[0];
-        const time = createdAt.toTimeString().split(' ')[0];
+        const ist = await this.convertToIST(rate.created_at);
 
         const previous = records[index + 1];
         const prevPrice = previous ? await this.safeNum(previous.price_per_gram) : null;
@@ -68,8 +95,7 @@ export default class AdminMaterialRateController {
         if (index === 0) changeFromToday = '+0.00%';
 
         return {
-          date,
-          time,
+          ist,
           price_per_gram: price,
           live_price: rate.is_latest ? true : false,
           prev_change: changeFromPrevious,

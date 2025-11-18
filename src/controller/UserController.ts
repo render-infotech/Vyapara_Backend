@@ -394,7 +394,7 @@ export default class UsersController {
     // @ts-ignore
     const { userId } = req.user;
     const requestBody = req.body;
-    const mandatoryFields = ['first_name', 'last_name', 'email'];
+    const mandatoryFields = ['first_name', 'email'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -455,6 +455,103 @@ export default class UsersController {
       }
     }
     logger.info(`updateProfile User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async updateAdminProfile(req: Request, res: Response) {
+    let uploaded = false;
+    let fileLocation = null;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        singleImageUpload('profile_pic')(req, res, (err: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      uploaded = true;
+      // @ts-ignore
+      fileLocation = req?.file?.location;
+    } catch (error) {
+      logger.error('Error in uploading image for updateAdminProfile', error);
+    }
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    const requestBody = req.body;
+    const mandatoryFields = ['first_name', 'email'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      if (role_id !== predefinedRoles.Admin.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only admin can update this profile.',
+          statusCodes.FORBIDDEN,
+        );
+      } else {
+        try {
+          const userWhere: any = {
+            id: userId,
+            role_id: predefinedRoles.Admin.id,
+          };
+          const recordExists = await this.usersModel.findOne({
+            attributes: ['id', 'first_name', 'last_name', 'email', 'is_deactivated', 'status', 'profile_pic'],
+            where: userWhere,
+          });
+          responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+          if (recordExists) {
+            if (!recordExists.is_deactivated) {
+              if (!recordExists.status) {
+                responseData = prepareJSONResponse(
+                  {},
+                  'Kindly contact admin for enabling the system access',
+                  statusCodes.BAD_REQUEST,
+                );
+              } else {
+                const oldProfilePic = recordExists.profile_pic;
+                const newProfilePic = uploaded && fileLocation ? fileLocation : oldProfilePic;
+                if (uploaded && oldProfilePic && oldProfilePic !== newProfilePic) {
+                  try {
+                    await removeS3File(oldProfilePic);
+                  } catch (error) {
+                    logger.error('updateAdminProfile - Error deleting old profile picture', error);
+                  }
+                }
+
+                const newData = await this.usersModel.update(
+                  {
+                    first_name: requestBody.first_name,
+                    last_name: requestBody.last_name,
+                    email: requestBody.email,
+                    dob: requestBody.dob || recordExists?.dob,
+                    phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
+                    phone_code: requestBody.phone_code || recordExists?.phone_code,
+                    phone: requestBody.phone || recordExists?.phone,
+                    profile_pic: newProfilePic,
+                  },
+                  { where: { id: userId, role_id: predefinedRoles?.Admin?.id } },
+                );
+                logger.info(`updateAdminProfile - Updated the entry: ${JSON.stringify(newData)} }`);
+                responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('updateAdminProfile - Error Exception in User Update Profile.', error);
+          responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+        }
+      }
+    }
+    logger.info(
+      `updateAdminProfile User Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
     return res.status(responseData.status).json(responseData);
   }
 

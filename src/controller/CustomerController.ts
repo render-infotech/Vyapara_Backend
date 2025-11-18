@@ -214,6 +214,35 @@ export default class CustomersController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async convertToIST(dateString: string) {
+    try {
+      if (!dateString) return null;
+
+      const date = new Date(dateString);
+
+      if (isNaN(date.getTime())) {
+        logger.error(`convertToIST: Invalid date string received -> ${dateString}`);
+        return null;
+      }
+
+      const istString = date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+      });
+
+      const [datePart, timePart] = istString.split(', ');
+
+      return {
+        date: datePart,
+        time: timePart,
+      };
+    } catch (error: any) {
+      logger.error(`convertToIST error: ${error.message}`, { error });
+      return null;
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async createCustomerDetails(req: Request, res: Response) {
     const requestBody = req.body;
     const mandatoryFields = ['id'];
@@ -1141,14 +1170,7 @@ export default class CustomersController {
               model: this.digitalPurchaseModel,
               as: 'digitalPurchase',
               attributes: {
-                exclude: [
-                  'customer_id',
-                  'transaction_type_id',
-                  'rate_timestamp',
-                  'remarks',
-                  'created_at',
-                  'updated_at',
-                ],
+                exclude: ['customer_id', 'transaction_type_id', 'rate_timestamp', 'remarks', 'updated_at'],
               },
             },
           ],
@@ -1159,8 +1181,17 @@ export default class CustomersController {
           responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
         } else {
           const allDigitalPurchases = customerRecords?.digitalPurchase;
+          let flattenedPurchases = [];
 
-          responseData = prepareJSONResponse(allDigitalPurchases, 'Success', statusCodes.OK);
+          (await Promise.all(
+            allDigitalPurchases.map(async (pur: any) => {
+              flattenedPurchases.push({
+                ...pur.toJSON(),
+                ist: await this.convertToIST(pur.created_at),
+              });
+            }),
+          ),
+            (responseData = prepareJSONResponse(flattenedPurchases, 'Success', statusCodes.OK)));
         }
       } catch (error) {
         logger.error('getDigitalPurchaseList - Error retrieving Customer digital purchase.', error);
@@ -1216,14 +1247,7 @@ export default class CustomersController {
                 },
               },
               attributes: {
-                exclude: [
-                  'customer_id',
-                  'transaction_type_id',
-                  'rate_timestamp',
-                  'remarks',
-                  'created_at',
-                  'updated_at',
-                ],
+                exclude: ['customer_id', 'transaction_type_id', 'rate_timestamp', 'remarks', 'updated_at'],
               },
             },
           ],
@@ -1238,16 +1262,22 @@ export default class CustomersController {
         } else {
           const flattenedPurchases: any[] = [];
 
-          allCustomersData.forEach((customer) => {
-            const code = customer.customerDetails.customer_code;
+          await Promise.all(
+            allCustomersData.map(async (customer) => {
+              const code = customer.customerDetails.customer_code;
 
-            customer.digitalPurchase.forEach((pur: any) => {
-              flattenedPurchases.push({
-                ...pur.toJSON(),
-                customer_code: code,
-              });
-            });
-          });
+              await Promise.all(
+                customer.digitalPurchase.map(async (pur: any) => {
+                  flattenedPurchases.push({
+                    ...pur.toJSON(),
+                    customer_code: code,
+                    ist: await this.convertToIST(pur.created_at),
+                  });
+                }),
+              );
+            }),
+          );
+
           responseData = prepareJSONResponse(flattenedPurchases, 'Success', statusCodes.OK);
         }
       } catch (error) {
