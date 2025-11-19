@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
-import razorpayWebhookLogger from '../utils/razorpayWebhookLogger.js';
 import UsersModel from '../models/users';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
@@ -802,7 +801,7 @@ export default class DigitalPurchaseController {
       const signature = req.headers['x-razorpay-signature'] as string;
 
       if (!signature) {
-        razorpayWebhookLogger.error('Webhook signature missing');
+        logger.error('Webhook signature missing');
         return res.status(400).send('Signature missing');
       }
 
@@ -811,14 +810,14 @@ export default class DigitalPurchaseController {
       const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
 
       if (expectedSignature !== signature) {
-        razorpayWebhookLogger.error('Invalid webhook signature');
+        logger.error('Invalid webhook signature');
         return res.status(400).send('Invalid signature');
       }
 
       const webhookData = JSON.parse(rawBody);
       const event = webhookData.event;
 
-      razorpayWebhookLogger.info(`Webhook received: ${event}`);
+      logger.info(`Webhook received: ${event}`);
 
       const payment = webhookData.payload?.payment?.entity;
       const order = webhookData.payload?.order?.entity;
@@ -837,12 +836,12 @@ export default class DigitalPurchaseController {
           break;
 
         default:
-          razorpayWebhookLogger.info(`Unhandled event ${event}`);
+          logger.info(`Unhandled event ${event}`);
       }
 
       return res.status(200).send('OK');
     } catch (error) {
-      razorpayWebhookLogger.error('Webhook processing error', error);
+      logger.error('Webhook processing error', error);
       return res.status(500).send('Server error');
     }
   }
@@ -857,12 +856,12 @@ export default class DigitalPurchaseController {
       });
 
       if (!purchase) {
-        razorpayWebhookLogger.error(`No purchase found for order ${order_id}`);
+        logger.error(`No purchase found for order ${order_id}`);
         return;
       }
 
       if (purchase.payment_status === 2) {
-        razorpayWebhookLogger.info(`Payment already captured for ${order_id}`);
+        logger.info(`Payment already captured for ${order_id}`);
         return;
       }
 
@@ -872,9 +871,9 @@ export default class DigitalPurchaseController {
       purchase.remarks = 'Payment captured via webhook';
 
       await purchase.save();
-      razorpayWebhookLogger.info(`Payment captured saved for order ${order_id}`);
+      logger.info(`Payment captured saved for order ${order_id}`);
     } catch (error) {
-      razorpayWebhookLogger.error('_updatePaymentCaptured Error:', error);
+      logger.error('_updatePaymentCaptured Error:', error);
     }
   }
 
@@ -893,9 +892,9 @@ export default class DigitalPurchaseController {
       purchase.remarks = error_description || 'Payment failed';
 
       await purchase.save();
-      razorpayWebhookLogger.info(`Payment failed stored for order ${order_id}`);
+      logger.info(`Payment failed stored for order ${order_id}`);
     } catch (error) {
-      razorpayWebhookLogger.error('_updatePaymentFailed Error:', error);
+      logger.error('_updatePaymentFailed Error:', error);
     }
   }
 
@@ -912,9 +911,9 @@ export default class DigitalPurchaseController {
       purchase.remarks = 'Order paid';
 
       await purchase.save();
-      razorpayWebhookLogger.info(`Order paid synced for order ${order.id}`);
+      logger.info(`Order paid synced for order ${order.id}`);
     } catch (error) {
-      razorpayWebhookLogger.error('_updateOrderPaid Error:', error);
+      logger.error('_updateOrderPaid Error:', error);
     }
   }
 }
