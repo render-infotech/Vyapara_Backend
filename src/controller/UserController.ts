@@ -342,6 +342,18 @@ export default class UsersController {
                 };
                 break;
 
+              case 1:
+                data = {
+                  ...data,
+                  identifier: 1,
+                  associations: {
+                    vendor_id: null,
+                    customer_id: null,
+                    rider_id: null,
+                  },
+                };
+                break;
+
               default:
                 data = {
                   ...data,
@@ -437,6 +449,7 @@ export default class UsersController {
                   last_name: requestBody.last_name,
                   email: requestBody.email,
                   dob: requestBody.dob || recordExists?.dob,
+                  gender: requestBody.gender || recordExists?.gender,
                   phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
                   phone_code: requestBody.phone_code || recordExists?.phone_code,
                   phone: requestBody.phone || recordExists?.phone,
@@ -531,6 +544,7 @@ export default class UsersController {
                     last_name: requestBody.last_name,
                     email: requestBody.email,
                     dob: requestBody.dob || recordExists?.dob,
+                    gender: requestBody.gender || recordExists?.gender,
                     phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
                     phone_code: requestBody.phone_code || recordExists?.phone_code,
                     phone: requestBody.phone || recordExists?.phone,
