@@ -25,11 +25,11 @@ export default [
       'eslint-comments': eslintCommentsPlugin,
     },
     rules: {
-      'prettier/prettier': ['error', { singleQuote: true }],
+      'prettier/prettier': 'error',
       quotes: ['error', 'single'],
       'no-console': 'warn',
       'no-param-reassign': 'off',
-      'max-len': ['warn', { code: 150, ignoreComments: true, ignoreUrls: true }],
+      'max-len': ['warn', { code: 200, ignoreComments: true, ignoreUrls: true }],
       camelcase: 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
