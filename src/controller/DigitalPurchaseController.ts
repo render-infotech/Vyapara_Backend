@@ -356,7 +356,6 @@ export default class DigitalPurchaseController {
 
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
-    let message = 'Missing required fields';
 
     if (missingFields.length > 0) {
       responseData = prepareJSONResponse(
