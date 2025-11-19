@@ -486,7 +486,6 @@ export default class DigitalPurchaseController {
         );
         return res.status(responseData.status).json(responseData);
       }
-
       const newPurchase = await this.digitalPurchaseModel.create({
         customer_id: userId,
           transaction_type_id: 1,
