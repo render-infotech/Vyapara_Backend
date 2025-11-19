@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
 import crypto from 'crypto';
-// import Razorpay from 'razorpay';
+import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -505,23 +505,23 @@ export default class DigitalPurchaseController {
         rate_timestamp: preview_generated_at,
       });
 
-      // const razorpay = new Razorpay({
-      //   key_id: process.env.RAZORPAY_KEY_ID!,
-      //   key_secret: process.env.RAZORPAY_KEY_SECRET!,
-      // });
+      const razorpay = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
 
-      // const order = razorpay.orders.create({
-      //   amount: Math.round(recalculated_total * 100),
-      //   currency: 'INR',
-      //   receipt: newPurchase.purchase_code,
-      //   payment_capture: true,
-      // });
+      const order = razorpay.orders.create({
+        amount: Math.round(recalculated_total * 100),
+        currency: 'INR',
+        receipt: newPurchase.purchase_code,
+        payment_capture: true,
+      });
 
-      // newPurchase.razorpay_order_id = (await order).id;
+      newPurchase.razorpay_order_id = (await order).id;
 
-      // await newPurchase.save({ transaction });
+      await newPurchase.save({ transaction });
 
-      // logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
+      logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
 
       const lastLedger = await this.digitalHoldingModel.findOne({
         where: {
@@ -548,8 +548,8 @@ export default class DigitalPurchaseController {
       responseData = prepareJSONResponse(
         {
           purchase_code: newPurchase.purchase_code,
-          // razorpay_order_id: (await order).id,
-          // razorpay_key_id: process.env.RAZORPAY_KEY_ID,
+          razorpay_order_id: (await order).id,
+          razorpay_key_id: process.env.RAZORPAY_KEY_ID,
           amount: recalculated_total,
         },
         'Success',
