@@ -243,7 +243,9 @@ export default class DigitalPurchaseController {
   // eslint-disable-next-line class-methods-use-this
   async getDigitalPurchasePreview(req: Request, res: Response) {
     const requestBody = req.body;
-    const mandatoryFields = ['customer_id', 'material_id', 'amount', 'date'];
+    // @ts-ignore
+    const { userId } = req.user;
+    const mandatoryFields = ['material_id', 'amount', 'date'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -253,7 +255,6 @@ export default class DigitalPurchaseController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const customer_id = requestBody.customer_id;
         const material_id = Number(requestBody.material_id);
         const amountNum = Number(requestBody.amount);
         const appliedDate = requestBody.date;
@@ -305,7 +306,7 @@ export default class DigitalPurchaseController {
         const total_amount = Number(total_amount_num.toFixed(2));
 
         const preview = {
-          customer_id,
+          customer_id: userId,
           material_id,
           price_per_gram,
           grams_purchased,
@@ -341,9 +342,8 @@ export default class DigitalPurchaseController {
   async createDigitalPurchase(req: Request, res: Response) {
     const requestBody = req.body;
     // @ts-ignore
-    const { role_id } = req.user;
+    const { userId, role_id } = req.user;
     const mandatoryFields = [
-      'customer_id',
       'material_id',
       'amount',
       'date',
@@ -377,7 +377,6 @@ export default class DigitalPurchaseController {
 
     try {
       const {
-        customer_id,
         material_id,
         amount,
         date,
@@ -394,7 +393,7 @@ export default class DigitalPurchaseController {
 
       const recordExists = await this.usersModel.findOne({
         where: {
-          id: customer_id,
+          id: userId,
           role_id: role_id,
           is_deactivated: 0,
           status: 1,
@@ -490,9 +489,8 @@ export default class DigitalPurchaseController {
         return res.status(responseData.status).json(responseData);
       }
 
-      const newPurchase = await this.digitalPurchaseModel.create(
-        {
-          customer_id,
+      const newPurchase = await this.digitalPurchaseModel.create({
+        customer_id: userId,
           transaction_type_id: 1,
           material_id: materialIdNum,
           amount: amountNum,
@@ -533,7 +531,7 @@ export default class DigitalPurchaseController {
 
       const lastLedger = await this.digitalHoldingModel.findOne({
         where: {
-          customer_id,
+          customer_id: userId,
           material_id: materialIdNum,
         },
         order: [['id', 'DESC']],
@@ -542,9 +540,8 @@ export default class DigitalPurchaseController {
       const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
       const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
 
-      const newHolding = await this.digitalHoldingModel.create(
-        {
-          customer_id,
+      const newHolding = await this.digitalHoldingModel.create({
+        customer_id: userId,
           material_id: materialIdNum,
           purchase_id: newPurchase.id,
           redeem_id: null,
