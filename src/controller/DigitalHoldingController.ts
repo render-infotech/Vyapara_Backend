@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
+import { predefinedMaterials, predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -320,6 +320,173 @@ export default class DigitalHoldingController {
     }
     logger.info(
       `getAllCustomersDigitalHoldings - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getCustomersCurrentHoldings(req: Request, res: Response) {
+    const requestBody = req.body;
+    const { customer_id, start_date, end_date } = requestBody;
+    const mandatoryFields = ['customer_id'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field] && requestBody[field] !== 0);
+
+    let responseData: typeof prepareJSONResponse = {};
+
+    if (missingFields.length > 0) {
+      responseData = prepareJSONResponse(
+        {},
+        `Missing required fields: ${missingFields.join(', ')}`,
+        statusCodes.BAD_REQUEST,
+      );
+    } else {
+      try {
+        let start, end;
+
+        if (start_date && end_date) {
+          start = new Date(`${start_date}T00:00:00.000Z`);
+          end = new Date(`${end_date}T23:59:59.999Z`);
+        }
+
+        const holdingWhere: any = { customer_id };
+
+        if (start && end) {
+          holdingWhere.created_at = { [Op.between]: [start, end] };
+        } else if (start_date) {
+          holdingWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+        } else if (end_date) {
+          holdingWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+        }
+
+        const allHoldings = await this.digitalHoldingModel.findAll({
+          where: holdingWhere,
+          raw: true,
+        });
+
+        const latestHoldingsMap: Record<number, number> = {};
+
+        for (const row of allHoldings) {
+          const mId = row.material_id;
+          const grams = Number(row.running_total_grams || 0);
+
+          if (!latestHoldingsMap[mId] || grams > latestHoldingsMap[mId]) {
+            latestHoldingsMap[mId] = grams;
+          }
+        }
+
+        const latestHoldings = Object.entries(latestHoldingsMap).map(([material_id, grams]) => ({
+          material_id: Number(material_id),
+          grams: Number(grams),
+        }));
+
+        if (latestHoldings.length === 0) {
+          responseData = prepareJSONResponse(
+            { total_investment_value: 0, materials: [] },
+            'No holdings found.',
+            statusCodes.OK,
+          );
+          return;
+        }
+
+        const purchaseWhere: any = {
+          customer_id,
+          transaction_type_id: 1,
+        };
+
+        if (start && end) {
+          purchaseWhere.created_at = { [Op.between]: [start, end] };
+        } else if (start_date) {
+          purchaseWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+        } else if (end_date) {
+          purchaseWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+        }
+
+        const allPurchases = await this.digitalPurchaseModel.findAll({
+          where: purchaseWhere,
+          raw: true,
+        });
+
+        const investMap: Record<number, { invested: number; grams: number }> = {};
+
+        for (const pur of allPurchases) {
+          const mId = pur.material_id;
+
+          if (!investMap[mId]) {
+            investMap[mId] = { invested: 0, grams: 0 };
+          }
+
+          investMap[mId].invested += Number(pur.amount || 0);
+          investMap[mId].grams += Number(pur.grams_purchased || 0);
+        }
+
+        const currentRates: Record<number, number> = {};
+        const materialIds = Object.values(predefinedMaterials).map((m) => m.id);
+
+        await Promise.all(
+          materialIds.map(async (mId) => {
+            const live = await this.getLiveMaterialPrice(mId);
+            currentRates[mId] = Number(live?.live_price?.price_per_gram || 0);
+          }),
+        );
+
+        const materialNames: Record<number, string> = Object.values(predefinedMaterials).reduce(
+          (acc, m) => {
+            acc[m.id] = m.name;
+            return acc;
+          },
+          {} as Record<number, string>,
+        );
+
+        let totalInvestmentValue = 0;
+        const materialsOutput: any[] = [];
+
+        for (const holding of latestHoldings) {
+          const materialId = holding.material_id;
+          const grams = Number(holding.grams);
+
+          const investedInfo = investMap[materialId] || { invested: 0, grams: 0 };
+          const totalInvested = investedInfo.invested;
+          const totalBuyGrams = investedInfo.grams;
+
+          const avgPrice = totalBuyGrams > 0 ? Number((totalInvested / totalBuyGrams).toFixed(2)) : 0;
+
+          const currentRate = currentRates[materialId];
+          const currentValue = Number((grams * currentRate).toFixed(2));
+
+          const profit = Number((currentValue - totalInvested).toFixed(2));
+          const profitPercent = totalInvested > 0 ? Number(((profit / totalInvested) * 100).toFixed(2)) : 0;
+
+          totalInvestmentValue += totalInvested;
+
+          materialsOutput.push({
+            material_id: materialId,
+            name: materialNames[materialId],
+            grams,
+            average_price: avgPrice,
+            current_rate: currentRate,
+            current_value: currentValue,
+            invested_amount: totalInvested,
+            profit,
+            profit_percent: profitPercent,
+          });
+        }
+
+        responseData = prepareJSONResponse(
+          {
+            total_investment_value: totalInvestmentValue,
+            materials: materialsOutput,
+          },
+          'Success',
+          statusCodes.OK,
+        );
+      } catch (error) {
+        logger.error('getCustomersCurrentHoldings - Error', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+
+    logger.info(
+      `getCustomersCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
     return res.status(responseData.status).json(responseData);
   }

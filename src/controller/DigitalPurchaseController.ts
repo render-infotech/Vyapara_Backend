@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
 import crypto from 'crypto';
-import Razorpay from 'razorpay';
+// import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -396,7 +396,6 @@ export default class DigitalPurchaseController {
           is_deactivated: 0,
           status: 1,
         },
-        transaction,
       });
 
       if (!recordExists) {
@@ -488,43 +487,41 @@ export default class DigitalPurchaseController {
       }
       const newPurchase = await this.digitalPurchaseModel.create({
         customer_id: userId,
-          transaction_type_id: 1,
-          material_id: materialIdNum,
-          amount: amountNum,
-          price_per_gram: latest_price_per_gram,
-          grams_purchased,
-          tax_rate_material: `+${latestMaterialTaxRate}%`,
-          tax_amount_material: tax_on_material,
-          tax_rate_service: `+${latestServiceTaxRate}%`,
-          tax_amount_service: tax_on_service,
-          total_tax_amount,
-          service_fee_rate: `+${latestServiceFeeRate}%`,
-          service_fee,
-          total_amount: recalculated_total,
-          purchase_status: 1,
-          payment_status: 1,
-          rate_timestamp: preview_generated_at,
-        },
-        { transaction },
-      );
-
-      const razorpay = new Razorpay({
-        key_id: process.env.RAZORPAY_KEY_ID!,
-        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+        transaction_type_id: 1,
+        material_id: materialIdNum,
+        amount: amountNum,
+        price_per_gram: latest_price_per_gram,
+        grams_purchased,
+        tax_rate_material: `+${latestMaterialTaxRate}%`,
+        tax_amount_material: tax_on_material,
+        tax_rate_service: `+${latestServiceTaxRate}%`,
+        tax_amount_service: tax_on_service,
+        total_tax_amount,
+        service_fee_rate: `+${latestServiceFeeRate}%`,
+        service_fee,
+        total_amount: recalculated_total,
+        purchase_status: 1,
+        payment_status: 1,
+        rate_timestamp: preview_generated_at,
       });
 
-      const order = razorpay.orders.create({
-        amount: Math.round(recalculated_total * 100),
-        currency: 'INR',
-        receipt: newPurchase.purchase_code,
-        payment_capture: true,
-      });
+      // const razorpay = new Razorpay({
+      //   key_id: process.env.RAZORPAY_KEY_ID!,
+      //   key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      // });
 
-      newPurchase.razorpay_order_id = (await order).id;
+      // const order = razorpay.orders.create({
+      //   amount: Math.round(recalculated_total * 100),
+      //   currency: 'INR',
+      //   receipt: newPurchase.purchase_code,
+      //   payment_capture: true,
+      // });
 
-      await newPurchase.save({ transaction });
+      // newPurchase.razorpay_order_id = (await order).id;
 
-      logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
+      // await newPurchase.save({ transaction });
+
+      // logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
 
       const lastLedger = await this.digitalHoldingModel.findOne({
         where: {
@@ -539,22 +536,20 @@ export default class DigitalPurchaseController {
 
       const newHolding = await this.digitalHoldingModel.create({
         customer_id: userId,
-          material_id: materialIdNum,
-          purchase_id: newPurchase.id,
-          redeem_id: null,
-          transaction_type_id: 1,
-          grams: grams_purchased,
-          running_total_grams: updatedBalance,
-        },
-        { transaction },
-      );
-      logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${newHolding}`);
+        material_id: materialIdNum,
+        purchase_id: newPurchase.id,
+        redeem_id: null,
+        transaction_type_id: 1,
+        grams: grams_purchased,
+        running_total_grams: updatedBalance,
+      });
+      logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${JSON.stringify(newHolding)}`);
 
       responseData = prepareJSONResponse(
         {
           purchase_code: newPurchase.purchase_code,
-          razorpay_order_id: (await order).id,
-          razorpay_key_id: process.env.RAZORPAY_KEY_ID,
+          // razorpay_order_id: (await order).id,
+          // razorpay_key_id: process.env.RAZORPAY_KEY_ID,
           amount: recalculated_total,
         },
         'Success',
@@ -568,6 +563,7 @@ export default class DigitalPurchaseController {
     return res.status(responseData.status).json(responseData);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   async verifyPayment(req: Request, res: Response) {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 

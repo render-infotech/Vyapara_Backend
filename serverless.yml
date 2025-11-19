@@ -41,6 +41,7 @@ functions:
   - ${file(./src/routes/systemSettings/v1/service_fee_rates/service_fee_rates.yml)}
   - ${file(./src/routes/digital_purchase/v1/digital_purchase.yml)}
   - ${file(./src/routes/products/v1/products.yml)}
+  - ${file(./src/routes/digital_holding/v1/digital_holding.yml)}
 
 plugins:
   - serverless-offline
