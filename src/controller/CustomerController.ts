@@ -521,7 +521,7 @@ export default class CustomersController {
         logger.info(`getCustomerAddresses - fetched addresses ${JSON.stringify(recordExists)}`);
 
         if (!recordExists) {
-          responseData = prepareJSONResponse({}, 'Customer not found', statusCodes.NOT_FOUND);
+          responseData = prepareJSONResponse({}, 'Address not found', statusCodes.NOT_FOUND);
         } else {
           if (recordExists?.customerAddress.length === 0) {
             responseData = prepareJSONResponse([], 'No address found.', statusCodes.NOT_FOUND);
