@@ -454,6 +454,7 @@ export default class DigitalPurchaseController {
           is_deactivated: 0,
           status: 1,
         },
+        transaction,
       });
 
       if (!recordExists) {
@@ -543,25 +544,30 @@ export default class DigitalPurchaseController {
         );
         return res.status(responseData.status).json(responseData);
       }
-      const newPurchase = await this.digitalPurchaseModel.create({
-        customer_id: userId,
-        transaction_type_id: 1,
-        material_id: materialIdNum,
-        amount: amountNum,
-        price_per_gram: latest_price_per_gram,
-        grams_purchased,
-        tax_rate_material: `+${latestMaterialTaxRate}%`,
-        tax_amount_material: tax_on_material,
-        tax_rate_service: `+${latestServiceTaxRate}%`,
-        tax_amount_service: tax_on_service,
-        total_tax_amount,
-        service_fee_rate: `+${latestServiceFeeRate}%`,
-        service_fee,
-        total_amount: recalculated_total,
-        purchase_status: 1,
-        payment_status: 1,
-        rate_timestamp: preview_generated_at,
-      });
+      const newPurchase = await this.digitalPurchaseModel.create(
+        {
+          customer_id: userId,
+          transaction_type_id: 1,
+          material_id: materialIdNum,
+          amount: amountNum,
+          price_per_gram: latest_price_per_gram,
+          grams_purchased,
+          tax_rate_material: `+${latestMaterialTaxRate}%`,
+          tax_amount_material: tax_on_material,
+          tax_rate_service: `+${latestServiceTaxRate}%`,
+          tax_amount_service: tax_on_service,
+          total_tax_amount,
+          service_fee_rate: `+${latestServiceFeeRate}%`,
+          service_fee,
+          total_amount: recalculated_total,
+          purchase_status: 1,
+          payment_status: 1,
+          rate_timestamp: preview_generated_at,
+        },
+        { transaction },
+      );
+
+      logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
 
       const razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID!,
@@ -578,7 +584,7 @@ export default class DigitalPurchaseController {
       newPurchase.razorpay_order_id = (await order).id;
 
       await newPurchase.save({ transaction });
-
+      await transaction.commit();
       logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
 
       responseData = prepareJSONResponse(
