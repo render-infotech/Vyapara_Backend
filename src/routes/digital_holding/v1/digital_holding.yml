@@ -4,7 +4,7 @@ digital_holding:
   memorySize: 300
   events:
     - http:
-        path: /v1/digital-holding
+        path: /v1/digital-holdings
         method: any
         cors:
           origin: '*'
@@ -17,7 +17,7 @@ digital_holding:
             - X-Amz-User-Agent
           allowCredentials: true
     - http:
-        path: /v1/digital-holding/{proxy+}
+        path: /v1/digital-holdings/{proxy+}
         method: any
         cors:
           origin: '*'

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { predefinedMaterials, predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
+import { predefinedMaterials, predefinedTaxType, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -238,10 +238,57 @@ export default class DigitalHoldingController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getAllCustomersDigitalHoldings(req: Request, res: Response) {
+  async validateDateRange(start_date?: string, end_date?: string) {
+    const result: {
+      isValid: boolean;
+      start: Date | null;
+      end: Date | null;
+      error: string | null;
+    } = {
+      isValid: true,
+      start: null,
+      end: null,
+      error: null,
+    };
+
+    try {
+      if (!start_date && !end_date) {
+        return result;
+      }
+
+      const start = start_date ? new Date(`${start_date}T00:00:00.000Z`) : null;
+      const end = end_date ? new Date(`${end_date}T23:59:59.999Z`) : null;
+
+      const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
+
+      if ((start_date && !isValidDate(start)) || (end_date && !isValidDate(end))) {
+        result.isValid = false;
+        result.error = 'Invalid date. Expected format YYYY-MM-DD';
+        return result;
+      }
+
+      if (start && end && start > end) {
+        result.isValid = false;
+        result.error = `Invalid date range. start_date (${start_date}) must be less than or equal to end_date (${end_date}).`;
+        return result;
+      }
+
+      result.start = start;
+      result.end = end;
+    } catch (error: any) {
+      result.isValid = false;
+      result.error = 'Unexpected error during date validation.';
+      logger.error('validateDateRange - Error in dates .', error);
+    }
+
+    return result;
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getCustomerHoldings(req: Request, res: Response) {
     const requestBody = req.body;
-    const { start_date, end_date } = req.body;
-    const mandatoryFields = ['start_date', 'end_date'];
+    const { customer_id, start_date, end_date, material_id } = req.body;
+    const mandatoryFields = ['customer_id', 'start_date', 'end_date'];
     const missingFields = mandatoryFields.filter(
       (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
     );
@@ -253,82 +300,133 @@ export default class DigitalHoldingController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const startDate = new Date(String(start_date));
-        const endDate = new Date(String(end_date));
-        endDate.setHours(23, 59, 59, 999);
+        const dateCheck = await this.validateDateRange(start_date, end_date);
 
-        const allCustomersData = await this.usersModel.findAll({
-          where: {
-            role_id: predefinedRoles.User.id,
-            is_deactivated: 0,
-            status: 1,
+        if (!dateCheck.isValid) {
+          responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        const { start, end } = dateCheck;
+
+        const holdingsWhere: any = {
+          customer_id,
+          created_at: {
+            [Op.between]: [start, end],
           },
+        };
+
+        const purchaseWhere: any = {
+          customer_id,
+          created_at: {
+            [Op.between]: [start, end],
+          },
+        };
+
+        if (material_id) {
+          holdingsWhere.material_id = material_id;
+          purchaseWhere.material_id = material_id;
+        }
+
+        const holdingsData = await this.digitalHoldingModel.findAll({
+          where: holdingsWhere,
           include: [
             {
               model: this.customerDetailsModel,
               as: 'customerDetails',
-              attributes: ['customer_code'],
               required: true,
+              where: {
+                customer_id,
+              },
+              attributes: ['customer_code'],
+              order: [['created_at', 'DESC']],
             },
             {
               model: this.digitalPurchaseModel,
               as: 'digitalPurchase',
-              required: false,
-              where: {
-                created_at: {
-                  [Op.between]: [startDate, endDate],
-                },
-              },
+              required: true,
+              where: purchaseWhere,
               attributes: {
-                exclude: ['customer_id', 'transaction_type_id', 'rate_timestamp', 'remarks', 'updated_at'],
+                exclude: [
+                  'customer_id',
+                  'transaction_type_id',
+                  'rate_timestamp',
+                  'remarks',
+                  'webhook_event_id',
+                  'created_at',
+                  'updated_at',
+                ],
               },
+              order: [['created_at', 'DESC']],
             },
           ],
-          attributes: {
-            exclude: ['created_at', 'updated_at'],
-          },
+          order: [['created_at', 'DESC']],
         });
 
-        logger.info(`getAllCustomersDigitalHoldings - fetched all the customers ${JSON.stringify(allCustomersData)}`);
-        if (allCustomersData.length === 0) {
-          responseData = prepareJSONResponse([], 'No customer found.', statusCodes.NOT_FOUND);
+        logger.info(`getCustomerHoldings - fetched all the holdings data ${JSON.stringify(holdingsData)}`);
+        if (holdingsData.length === 0) {
+          responseData = prepareJSONResponse([], 'No data found.', statusCodes.NOT_FOUND);
         } else {
-          const flattenedPurchases: any[] = [];
+          const finalData = await Promise.all(
+            holdingsData.map(async (item: any) => {
+              const holding = item.toJSON();
 
-          await Promise.all(
-            allCustomersData.map(async (customer) => {
-              const code = customer.customerDetails.customer_code;
+              return {
+                id: holding.id,
+                customer_id: holding.customer_id,
+                material_id: holding.material_id,
+                purchase_id: holding.purchase_id,
+                redeem_id: holding.redeem_id,
+                transaction_type_id: holding.transaction_type_id,
+                grams: holding.grams,
+                running_total_grams: holding.running_total_grams,
 
-              await Promise.all(
-                customer.digitalPurchase.map(async (pur: any) => {
-                  flattenedPurchases.push({
-                    ...pur.toJSON(),
-                    customer_code: code,
-                    ist: await this.convertToIST(pur.created_at),
-                  });
-                }),
-              );
+                // convert created_at to IST
+                ist: await this.convertToIST(holding.created_at),
+
+                // from CustomerDetails
+                customer_code: holding.customerDetails?.customer_code || null,
+
+                // from DigitalPurchase
+                purchase_code: holding.digitalPurchase?.purchase_code || null,
+                amount: holding.digitalPurchase?.amount || null,
+                price_per_gram: holding.digitalPurchase?.price_per_gram || null,
+                grams_purchased: holding.digitalPurchase?.grams_purchased || null,
+                tax_rate_material: holding.digitalPurchase?.tax_rate_material || null,
+                tax_amount_material: holding.digitalPurchase?.tax_amount_material || null,
+                tax_rate_service: holding.digitalPurchase?.tax_rate_service || null,
+                tax_amount_service: holding.digitalPurchase?.tax_amount_service || null,
+                total_tax_amount: holding.digitalPurchase?.total_tax_amount || null,
+                service_fee_rate: holding.digitalPurchase?.service_fee_rate || null,
+                service_fee: holding.digitalPurchase?.service_fee || null,
+                total_amount: holding.digitalPurchase?.total_amount || null,
+                purchase_status: holding.digitalPurchase?.purchase_status || null,
+                razorpay_order_id: holding.digitalPurchase?.razorpay_order_id || null,
+                razorpay_payment_id: holding.digitalPurchase?.razorpay_payment_id || null,
+                razorpay_signature: holding.digitalPurchase?.razorpay_signature || null,
+                payment_status: holding.digitalPurchase?.payment_status || null,
+              };
             }),
           );
 
-          responseData = prepareJSONResponse(flattenedPurchases, 'Success', statusCodes.OK);
+          responseData = prepareJSONResponse(finalData, 'Success', statusCodes.OK);
         }
       } catch (error) {
-        logger.error('getAllCustomersDigitalHoldings - Error retrieving Customer digital purchase.', error);
+        logger.error('getCustomerHoldings - Error retrieving Customer digital holdings.', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
-    logger.info(
-      `getAllCustomersDigitalHoldings - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-    );
+    logger.info(`getCustomerHoldings - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getCustomersCurrentHoldings(req: Request, res: Response) {
+  async getCustomerCurrentHoldings(req: Request, res: Response) {
     const requestBody = req.body;
-    const { customer_id, start_date, end_date } = requestBody;
-    const mandatoryFields = ['customer_id'];
+    // @ts-ignore
+    const { userId } = req.user;
+    const { start_date, end_date } = requestBody;
+    const mandatoryFields = [];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field] && requestBody[field] !== 0);
 
     let responseData: typeof prepareJSONResponse = {};
@@ -341,25 +439,26 @@ export default class DigitalHoldingController {
       );
     } else {
       try {
-        let start, end;
+        const dateCheck = await this.validateDateRange(start_date, end_date);
 
-        if (start_date && end_date) {
-          start = new Date(`${start_date}T00:00:00.000Z`);
-          end = new Date(`${end_date}T23:59:59.999Z`);
+        if (!dateCheck.isValid) {
+          responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
         }
 
-        const holdingWhere: any = { customer_id };
+        const { start, end } = dateCheck;
+        const holdingsWhere: any = { customer_id: userId };
 
         if (start && end) {
-          holdingWhere.created_at = { [Op.between]: [start, end] };
+          holdingsWhere.created_at = { [Op.between]: [start, end] };
         } else if (start_date) {
-          holdingWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+          holdingsWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
         } else if (end_date) {
-          holdingWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+          holdingsWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
         }
 
         const allHoldings = await this.digitalHoldingModel.findAll({
-          where: holdingWhere,
+          where: holdingsWhere,
           raw: true,
         });
 
@@ -385,109 +484,107 @@ export default class DigitalHoldingController {
             'No holdings found.',
             statusCodes.OK,
           );
-          return;
-        }
+        } else {
+          const purchaseWhere: any = {
+            customer_id: userId,
+            transaction_type_id: 1,
+          };
 
-        const purchaseWhere: any = {
-          customer_id,
-          transaction_type_id: 1,
-        };
-
-        if (start && end) {
-          purchaseWhere.created_at = { [Op.between]: [start, end] };
-        } else if (start_date) {
-          purchaseWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
-        } else if (end_date) {
-          purchaseWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
-        }
-
-        const allPurchases = await this.digitalPurchaseModel.findAll({
-          where: purchaseWhere,
-          raw: true,
-        });
-
-        const investMap: Record<number, { invested: number; grams: number }> = {};
-
-        for (const pur of allPurchases) {
-          const mId = pur.material_id;
-
-          if (!investMap[mId]) {
-            investMap[mId] = { invested: 0, grams: 0 };
+          if (start && end) {
+            purchaseWhere.created_at = { [Op.between]: [start, end] };
+          } else if (start_date) {
+            purchaseWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+          } else if (end_date) {
+            purchaseWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
           }
 
-          investMap[mId].invested += Number(pur.amount || 0);
-          investMap[mId].grams += Number(pur.grams_purchased || 0);
-        }
-
-        const currentRates: Record<number, number> = {};
-        const materialIds = Object.values(predefinedMaterials).map((m) => m.id);
-
-        await Promise.all(
-          materialIds.map(async (mId) => {
-            const live = await this.getLiveMaterialPrice(mId);
-            currentRates[mId] = Number(live?.live_price?.price_per_gram || 0);
-          }),
-        );
-
-        const materialNames: Record<number, string> = Object.values(predefinedMaterials).reduce(
-          (acc, m) => {
-            acc[m.id] = m.name;
-            return acc;
-          },
-          {} as Record<number, string>,
-        );
-
-        let totalInvestmentValue = 0;
-        const materialsOutput: any[] = [];
-
-        for (const holding of latestHoldings) {
-          const materialId = holding.material_id;
-          const grams = Number(holding.grams);
-
-          const investedInfo = investMap[materialId] || { invested: 0, grams: 0 };
-          const totalInvested = investedInfo.invested;
-          const totalBuyGrams = investedInfo.grams;
-
-          const avgPrice = totalBuyGrams > 0 ? Number((totalInvested / totalBuyGrams).toFixed(2)) : 0;
-
-          const currentRate = currentRates[materialId];
-          const currentValue = Number((grams * currentRate).toFixed(2));
-
-          const profit = Number((currentValue - totalInvested).toFixed(2));
-          const profitPercent = totalInvested > 0 ? Number(((profit / totalInvested) * 100).toFixed(2)) : 0;
-
-          totalInvestmentValue += totalInvested;
-
-          materialsOutput.push({
-            material_id: materialId,
-            name: materialNames[materialId],
-            grams,
-            average_price: avgPrice,
-            current_rate: currentRate,
-            current_value: currentValue,
-            invested_amount: totalInvested,
-            profit,
-            profit_percent: profitPercent,
+          const allPurchases = await this.digitalPurchaseModel.findAll({
+            where: purchaseWhere,
+            raw: true,
           });
-        }
 
-        responseData = prepareJSONResponse(
-          {
-            total_investment_value: totalInvestmentValue,
-            materials: materialsOutput,
-          },
-          'Success',
-          statusCodes.OK,
-        );
+          const investMap: Record<number, { invested: number; grams: number }> = {};
+
+          for (const pur of allPurchases) {
+            const mId = pur.material_id;
+
+            if (!investMap[mId]) {
+              investMap[mId] = { invested: 0, grams: 0 };
+            }
+
+            investMap[mId].invested += Number(pur.amount || 0);
+            investMap[mId].grams += Number(pur.grams_purchased || 0);
+          }
+
+          const currentRates: Record<number, number> = {};
+          const materialIds = Object.values(predefinedMaterials).map((m) => m.id);
+
+          await Promise.all(
+            materialIds.map(async (mId) => {
+              const live = await this.getLiveMaterialPrice(mId);
+              currentRates[mId] = Number(live?.live_price?.price_per_gram || 0);
+            }),
+          );
+
+          const materialNames: Record<number, string> = Object.values(predefinedMaterials).reduce(
+            (acc, m) => {
+              acc[m.id] = m.name;
+              return acc;
+            },
+            {} as Record<number, string>,
+          );
+
+          let totalInvestmentValue = 0;
+          const materialsOutput: any[] = [];
+
+          for (const holding of latestHoldings) {
+            const materialId = holding.material_id;
+            const grams = Number(holding.grams);
+
+            const investedInfo = investMap[materialId] || { invested: 0, grams: 0 };
+            const totalInvested = investedInfo.invested;
+            const totalBuyGrams = investedInfo.grams;
+
+            const avgPrice = totalBuyGrams > 0 ? Number((totalInvested / totalBuyGrams).toFixed(2)) : 0;
+
+            const currentRate = currentRates[materialId];
+            const currentValue = Number((grams * currentRate).toFixed(2));
+
+            const profit = Number((currentValue - totalInvested).toFixed(2));
+            const profitPercent = totalInvested > 0 ? Number(((profit / totalInvested) * 100).toFixed(2)) : 0;
+
+            totalInvestmentValue += totalInvested;
+
+            materialsOutput.push({
+              material_id: materialId,
+              name: materialNames[materialId],
+              grams,
+              average_price: avgPrice,
+              current_rate: currentRate,
+              current_value: currentValue,
+              invested_amount: totalInvested,
+              profit,
+              profit_percent: profitPercent,
+            });
+          }
+
+          responseData = prepareJSONResponse(
+            {
+              customer_id: userId,
+              total_investment_value: totalInvestmentValue,
+              materials: materialsOutput,
+            },
+            'Success',
+            statusCodes.OK,
+          );
+        }
       } catch (error) {
-        logger.error('getCustomersCurrentHoldings - Error', error);
+        logger.error('getCustomerCurrentHoldings - Error', error);
         responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
     }
 
-    logger.info(
-      `getCustomersCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-    );
+    logger.info(`getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }

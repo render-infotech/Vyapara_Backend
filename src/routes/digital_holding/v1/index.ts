@@ -27,10 +27,10 @@ Users.associate({
   DigitalPurchase,
   DigitalHolding,
 });
-CustomerDetails.associate({ Users, CustomerAddress });
+CustomerDetails.associate({ Users, CustomerAddress, DigitalPurchase, DigitalHolding });
 CustomerAddress.associate({ Users, CustomerDetails });
-DigitalPurchase.associate({ Users, DigitalHolding });
-DigitalHolding.associate({ Users, DigitalPurchase });
+DigitalPurchase.associate({ Users, DigitalHolding, CustomerDetails });
+DigitalHolding.associate({ Users, DigitalPurchase, CustomerDetails });
 
 const digitalHoldingController = new DigitalHoldingController(
   Users,
@@ -45,7 +45,7 @@ const digitalHoldingController = new DigitalHoldingController(
 
 const digitalHoldingControllerRoutes = ControllerRoutes(digitalHoldingController);
 
-app.use('/v1/digital-holding', digitalHoldingControllerRoutes);
+app.use('/v1/digital-holdings', digitalHoldingControllerRoutes);
 
 export default serverless(app);
 exports.digital_holding = serverless(app);

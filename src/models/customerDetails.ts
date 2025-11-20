@@ -1,6 +1,8 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 import CustomerAddress from './customerAddress';
+import DigitalPurchase from './digitalPurchase';
+import DigitalHolding from './digitalHolding';
 
 // Define the attributes for the CustomerDetails model
 interface CustomerDetailsAttributes {
@@ -51,6 +53,12 @@ class CustomerDetails
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerAddress: Association<CustomerAddress, InstanceType<typeof CustomerAddress>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
   };
 
   /**
@@ -71,6 +79,22 @@ class CustomerDetails
         foreignKey: 'customer_id',
         sourceKey: 'customer_id',
         as: 'customerAddress',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('DigitalPurchase')) {
+      this.hasMany(models.DigitalPurchase, {
+        foreignKey: 'customer_id',
+        sourceKey: 'customer_id',
+        as: 'digitalPurchases',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('DigitalHolding')) {
+      this.hasMany(models.DigitalHolding, {
+        foreignKey: 'customer_id',
+        sourceKey: 'customer_id',
+        as: 'digitalHoldings',
       });
     }
   }

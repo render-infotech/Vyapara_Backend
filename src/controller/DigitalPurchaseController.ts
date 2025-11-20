@@ -240,6 +240,53 @@ export default class DigitalPurchaseController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async validateDateRange(start_date?: string, end_date?: string) {
+    const result: {
+      isValid: boolean;
+      start: Date | null;
+      end: Date | null;
+      error: string | null;
+    } = {
+      isValid: true,
+      start: null,
+      end: null,
+      error: null,
+    };
+
+    try {
+      if (!start_date && !end_date) {
+        return result;
+      }
+
+      const start = start_date ? new Date(`${start_date}T00:00:00.000Z`) : null;
+      const end = end_date ? new Date(`${end_date}T23:59:59.999Z`) : null;
+
+      const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
+
+      if ((start_date && !isValidDate(start)) || (end_date && !isValidDate(end))) {
+        result.isValid = false;
+        result.error = 'Invalid date. Expected format YYYY-MM-DD';
+        return result;
+      }
+
+      if (start && end && start > end) {
+        result.isValid = false;
+        result.error = `Invalid date range. start_date (${start_date}) must be less than or equal to end_date (${end_date}).`;
+        return result;
+      }
+
+      result.start = start;
+      result.end = end;
+    } catch (error: any) {
+      result.isValid = false;
+      result.error = 'Unexpected error during date validation.';
+      logger.error('validateDateRange - Error in dates .', error);
+    }
+
+    return result;
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async getDigitalPurchasePreview(req: Request, res: Response) {
     const requestBody = req.body;
     // @ts-ignore
@@ -704,9 +751,14 @@ export default class DigitalPurchaseController {
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
       try {
-        const startDate = new Date(String(start_date));
-        const endDate = new Date(String(end_date));
-        endDate.setHours(23, 59, 59, 999);
+        const dateCheck = await this.validateDateRange(start_date, end_date);
+
+        if (!dateCheck.isValid) {
+          responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        const { start, end } = dateCheck;
 
         const allCustomersData = await this.usersModel.findAll({
           where: {
@@ -727,7 +779,7 @@ export default class DigitalPurchaseController {
               required: false,
               where: {
                 created_at: {
-                  [Op.between]: [startDate, endDate],
+                  [Op.between]: [start, end],
                 },
               },
               attributes: {

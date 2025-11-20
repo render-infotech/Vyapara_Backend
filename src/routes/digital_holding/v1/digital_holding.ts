@@ -6,9 +6,14 @@ const router = express.Router();
 
 export default (digitalHoldingController: DigitalHoldingController) => {
   router.post(
-    '/customer/all',
+    '/',
     Authentication(),
-    digitalHoldingController.getCustomersCurrentHoldings.bind(digitalHoldingController),
+    digitalHoldingController.getCustomerCurrentHoldings.bind(digitalHoldingController),
+  );
+  router.post(
+    '/history',
+    Authentication(),
+    digitalHoldingController.getCustomerHoldings.bind(digitalHoldingController),
   );
   return router;
 };

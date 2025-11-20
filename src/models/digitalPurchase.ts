@@ -2,6 +2,7 @@ import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import crypto from 'crypto';
 import Users from './users';
 import DigitalHolding from './digitalHolding';
+import CustomerDetails from './customerDetails';
 
 // Define attributes for the CustomerOnlineTransactions model
 interface DigitalPurchaseAttributes {
@@ -103,6 +104,9 @@ class DigitalPurchase
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
   };
 
   /**
@@ -124,6 +128,14 @@ class DigitalPurchase
       this.hasOne(models.DigitalHoldings, {
         foreignKey: 'purchase_id',
         as: 'digitalHoldings',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('CustomerDetails')) {
+      this.belongsTo(models.CustomerDetails, {
+        foreignKey: 'customer_id',
+        targetKey: 'customer_id',
+        as: 'customerDetails',
       });
     }
   }

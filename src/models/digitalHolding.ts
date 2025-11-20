@@ -1,6 +1,7 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 import DigitalPurchase from './digitalPurchase';
+import CustomerDetails from './customerDetails';
 
 interface DigitalHoldingsAttributes {
   id: number;
@@ -51,6 +52,9 @@ class DigitalHoldings
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
   };
 
   /**
@@ -73,6 +77,14 @@ class DigitalHoldings
         foreignKey: 'purchase_id',
         targetKey: 'id',
         as: 'digitalPurchase',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('CustomerDetails')) {
+      this.belongsTo(models.CustomerDetails, {
+        foreignKey: 'customer_id',
+        targetKey: 'customer_id',
+        as: 'customerDetails',
       });
     }
   }
