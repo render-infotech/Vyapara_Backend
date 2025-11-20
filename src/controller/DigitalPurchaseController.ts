@@ -339,6 +339,10 @@ export default class DigitalPurchaseController {
 
   // eslint-disable-next-line class-methods-use-this
   async createDigitalPurchase(req: Request, res: Response) {
+    logger.info('createDigitalPurchase - Started');
+    logger.info(
+      `createDigitalPurchase - Razorpay Keys : ${process.env.RAZORPAY_KEY_ID} - ${process.env.RAZORPAY_KEY_SECRET}`,
+    );
     const requestBody = req.body;
     // @ts-ignore
     const { userId, role_id } = req.user;
@@ -353,9 +357,13 @@ export default class DigitalPurchaseController {
       'total_amount',
       'preview_generated_at',
     ];
-
+    logger.info('createDigitalPurchase - request');
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
+
+    logger.info(
+      `createDigitalPurchase - Razorpay Keys : ${process.env.RAZORPAY_KEY_ID} - ${process.env.RAZORPAY_KEY_SECRET}`,
+    );
 
     if (missingFields.length > 0) {
       responseData = prepareJSONResponse(
@@ -523,28 +531,6 @@ export default class DigitalPurchaseController {
 
       logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
 
-      const lastLedger = await this.digitalHoldingModel.findOne({
-        where: {
-          customer_id: userId,
-          material_id: materialIdNum,
-        },
-        order: [['id', 'DESC']],
-      });
-
-      const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
-      const updatedBalance = Number((previousBalance + grams_purchased).toFixed(6));
-
-      const newHolding = await this.digitalHoldingModel.create({
-        customer_id: userId,
-        material_id: materialIdNum,
-        purchase_id: newPurchase.id,
-        redeem_id: null,
-        transaction_type_id: 1,
-        grams: grams_purchased,
-        running_total_grams: updatedBalance,
-      });
-      logger.info(`createDigitalPurchase - Ledger updated for digital purchase: ${JSON.stringify(newHolding)}`);
-
       responseData = prepareJSONResponse(
         {
           purchase_code: newPurchase.purchase_code,
@@ -555,6 +541,7 @@ export default class DigitalPurchaseController {
         'Success',
         statusCodes.OK,
       );
+      return res.status(responseData.status).json(responseData);
     } catch (error) {
       logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
