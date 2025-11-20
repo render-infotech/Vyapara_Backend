@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
+import dotenv from 'dotenv';
 import UsersModel from '../models/users';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
@@ -14,6 +15,8 @@ import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
 
 import { Op } from 'sequelize';
+
+dotenv.config();
 
 export default class DigitalPurchaseController {
   // @ts-ignore
