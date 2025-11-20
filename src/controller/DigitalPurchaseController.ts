@@ -600,7 +600,7 @@ export default class DigitalPurchaseController {
       return res.status(responseData.status).json(responseData);
     } catch (error) {
       logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
-      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      responseData = prepareJSONResponse({ error: error }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
 
     return res.status(responseData.status).json(responseData);
