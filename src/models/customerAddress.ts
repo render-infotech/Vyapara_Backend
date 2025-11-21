@@ -1,6 +1,7 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 import CustomerDetails from './customerDetails';
+import PhysicalRedeem from './physicalRedeem';
 
 // Define the attributes for the CustomerAddress model
 interface CustomerAddressAttributes {
@@ -80,6 +81,9 @@ class CustomerAddress
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;
   };
 
   /**
@@ -101,6 +105,14 @@ class CustomerAddress
         foreignKey: 'customer_id',
         targetKey: 'customer_id',
         as: 'customerDetails',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalRedeem')) {
+      this.hasMany(models.PhysicalRedeem, {
+        foreignKey: 'address_id',
+        sourceKey: 'id',
+        as: 'physicalRedeem',
       });
     }
   }

@@ -3,6 +3,7 @@ import Users from './users';
 import DigitalPurchase from './digitalPurchase';
 import CustomerDetails from './customerDetails';
 
+// Define attributes for the DigitalHoldings model
 interface DigitalHoldingsAttributes {
   id: number;
   customer_id: number;
@@ -16,8 +17,10 @@ interface DigitalHoldingsAttributes {
   updated_at: Date;
 }
 
+// Optional attributes for creation
 interface DigitalHoldingsCreation extends Optional<DigitalHoldingsAttributes, 'id'> {}
 
+// Define the DigitalHoldings model
 class DigitalHoldings
   extends Model<DigitalHoldingsAttributes, DigitalHoldingsCreation>
   implements DigitalHoldingsAttributes
@@ -90,6 +93,7 @@ class DigitalHoldings
   }
 }
 
+// Initialize model
 const DigitalHoldingsModel = (sequelize: Sequelize): typeof DigitalHoldings => {
   DigitalHoldings.init(
     {

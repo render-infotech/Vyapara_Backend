@@ -1,5 +1,6 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
+import PhysicalRedeem from './physicalRedeem';
 
 interface WorkingHour {
   id: number;
@@ -91,6 +92,9 @@ class VendorDetails
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     user: Association<Users, InstanceType<typeof Users>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;
   };
 
   /**
@@ -103,6 +107,14 @@ class VendorDetails
       this.belongsTo(models.Users, {
         foreignKey: 'vendor_id',
         as: 'user',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalRedeem')) {
+      this.hasMany(models.PhysicalRedeem, {
+        foreignKey: 'vendor_id',
+        sourceKey: 'vendor_id',
+        as: 'physicalRedeem',
       });
     }
   }

@@ -10,6 +10,7 @@ import MaterialRateModel from '../models/materialRate';
 import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
+import PhysicalRedeemModel from '../models/physicalRedeem';
 
 import { Op } from 'sequelize';
 
@@ -38,6 +39,9 @@ export default class DigitalHoldingController {
   // @ts-ignore
   private digitalHoldingModel: DigitalHoldingModel;
 
+  // @ts-ignore
+  private physicalRedeemModel: PhysicalRedeemModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -55,6 +59,8 @@ export default class DigitalHoldingController {
     serviceFeeRateModel: ServiceFeeRateModel,
     // @ts-ignore
     digitalHoldingModel: DigitalHoldingModel,
+    // @ts-ignore
+    physicalRedeemModel: PhysicalRedeemModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
@@ -64,6 +70,7 @@ export default class DigitalHoldingController {
     this.taxRateModel = taxRateModel;
     this.serviceFeeRateModel = serviceFeeRateModel;
     this.digitalHoldingModel = digitalHoldingModel;
+    this.physicalRedeemModel = physicalRedeemModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -485,21 +492,31 @@ export default class DigitalHoldingController {
             statusCodes.OK,
           );
         } else {
-          const purchaseWhere: any = {
-            customer_id: userId,
-            transaction_type_id: 1,
-          };
+          const mergedFilter: any = { customer_id: userId };
 
           if (start && end) {
-            purchaseWhere.created_at = { [Op.between]: [start, end] };
+            mergedFilter.created_at = { [Op.between]: [start, end] };
           } else if (start_date) {
-            purchaseWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+            mergedFilter.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
           } else if (end_date) {
-            purchaseWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+            mergedFilter.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
           }
 
           const allPurchases = await this.digitalPurchaseModel.findAll({
-            where: purchaseWhere,
+            where: {
+              ...mergedFilter,
+              transaction_type_id: 1,
+              purchase_status: 2,
+              payment_status: 2,
+            },
+            raw: true,
+          });
+
+          const allRedeems = await this.physicalRedeemModel.findAll({
+            where: {
+              ...mergedFilter,
+              transaction_type_id: 3,
+            },
             raw: true,
           });
 
@@ -514,6 +531,20 @@ export default class DigitalHoldingController {
 
             investMap[mId].invested += Number(pur.amount || 0);
             investMap[mId].grams += Number(pur.grams_purchased || 0);
+          }
+
+          for (const red of allRedeems) {
+            const mId = red.material_id;
+
+            if (!investMap[mId]) {
+              investMap[mId] = { invested: 0, grams: 0 };
+            }
+
+            investMap[mId].grams -= Number(red.grams_redeemed || 0);
+
+            const redeemValue = Number(red.grams_redeemed || 0) * Number(red.price_per_gram || 0);
+
+            investMap[mId].invested -= redeemValue;
           }
 
           const currentRates: Record<number, number> = {};

@@ -230,3 +230,44 @@ ADD COLUMN razorpay_payment_id VARCHAR(255),
 ADD COLUMN razorpay_signature VARCHAR(255),
 ADD COLUMN payment_status TINYINT DEFAULT 0,
 ADD COLUMN webhook_event_id VARCHAR(255);
+
+
+-- Created new table for physical redeem - by Shubham
+CREATE TABLE IF NOT EXISTS `physical_redeem` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the redeem',
+  `customer_id` BIGINT NOT NULL COMMENT 'Foreign key of the customer who made the purchase',
+  `redeem_code` VARCHAR(100) UNIQUE COMMENT 'Unique redeem identifier (e.g., RD20251013-001)',
+  `transaction_type_id` INT NOT NULL DEFAULT 3 COMMENT 'Transaction type (1 = Buy, 2 = Deposit, 3 = Redeem)',
+  `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
+  `price_per_gram` DECIMAL(15,2) NOT NULL COMMENT 'Metal price per gram at redeem time was initiated',
+  `grams_before_redeem` DECIMAL(15,6) NOT NULL COMMENT 'Total grams before redeem request',
+  `grams_redeemed` DECIMAL(15,6) NOT NULL COMMENT 'Grams redeemed in this request',
+  `grams_after_redeem` DECIMAL(15,6) NOT NULL COMMENT 'Remaining grams after redeem',
+  `address_id` BIGINT NOT NULL COMMENT 'Delivery address selected',
+  `products` JSON NOT NULL COMMENT 'Array of products with quantity: [{ product_id, quantity }]',
+  `admin_status` INT NOT NULL DEFAULT 1 COMMENT 'Admin status: 0=Pending, 1=Approve, 2=Reject',
+  `vendor_id` BIGINT NULL COMMENT 'Vendor assigned by admin',
+  `vendor_status` INT NULL DEFAULT 0 COMMENT 'Vendor response: 0=Pending, 1=Approve, 2=Reject',
+  `rider_id` BIGINT NULL COMMENT 'Rider assigned by vendor',
+  `rider_status` INT NULL DEFAULT 0 COMMENT 'Rider status: 0=Pending, 1=Approve, 2=Reject',
+  `flow_status` INT NOT NULL DEFAULT 1 COMMENT 'Workflow state',
+  `remarks` TEXT NULL COMMENT 'Optional remarks',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated timestamp',
+
+  PRIMARY KEY (`id`),
+
+  -- Customer & Address FK
+  CONSTRAINT `fk_physical_redeem_customer`
+    FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE,
+
+  CONSTRAINT `fk_physical_redeem_address`
+    FOREIGN KEY (`address_id`) REFERENCES `customer_address`(`id`)
+    ON DELETE RESTRICT,
+
+  -- Vendor FK (NEW)
+  CONSTRAINT `fk_physical_redeem_vendor`
+    FOREIGN KEY (`vendor_id`) REFERENCES `vendor_details`(`vendor_id`)
+    ON DELETE SET NULL
+);

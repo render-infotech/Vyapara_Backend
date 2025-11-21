@@ -4,7 +4,7 @@ import Users from './users';
 import DigitalHolding from './digitalHolding';
 import CustomerDetails from './customerDetails';
 
-// Define attributes for the CustomerOnlineTransactions model
+// Define attributes for the DigitalPurchase model
 interface DigitalPurchaseAttributes {
   id: number;
   customer_id: number;
@@ -37,7 +37,7 @@ interface DigitalPurchaseAttributes {
 // Optional attributes for creation
 interface DigitalPurchaseCreationAttributes extends Optional<DigitalPurchaseAttributes, 'id'> {}
 
-// Define the CustomerOnlineTransactions model
+// Define the DigitalPurchase model
 class DigitalPurchase
   extends Model<DigitalPurchaseAttributes, DigitalPurchaseCreationAttributes>
   implements DigitalPurchaseAttributes

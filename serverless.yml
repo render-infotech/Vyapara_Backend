@@ -42,6 +42,7 @@ functions:
   - ${file(./src/routes/digital_purchase/v1/digital_purchase.yml)}
   - ${file(./src/routes/products/v1/products.yml)}
   - ${file(./src/routes/digital_holding/v1/digital_holding.yml)}
+  - ${file(./src/routes/physical_redeem/v1/physical_redeem.yml)}
 
 plugins:
   - serverless-offline

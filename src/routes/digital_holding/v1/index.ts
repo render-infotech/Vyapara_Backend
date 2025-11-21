@@ -10,6 +10,8 @@ import DigitalHoldingModel from '../../../models/digitalHolding';
 import MaterialRateModel from '../../../models/materialRate';
 import TaxRateModel from '../../../models/taxRate';
 import ServiceFeeRateModel from '../../../models/serviceFeeRate';
+import PhysicalRedeemModel from '../../../models/physicalRedeem';
+
 import ControllerRoutes from './digital_holding';
 
 const Users = UsersModel(sequelize);
@@ -20,6 +22,7 @@ const DigitalHolding = DigitalHoldingModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
 const TaxRate = TaxRateModel(sequelize);
 const ServiceFeeRate = ServiceFeeRateModel(sequelize);
+const PhysicalRedeem = PhysicalRedeemModel(sequelize);
 
 Users.associate({
   CustomerDetails,
@@ -41,6 +44,7 @@ const digitalHoldingController = new DigitalHoldingController(
   TaxRate,
   ServiceFeeRate,
   DigitalHolding,
+  PhysicalRedeem,
 );
 
 const digitalHoldingControllerRoutes = ControllerRoutes(digitalHoldingController);

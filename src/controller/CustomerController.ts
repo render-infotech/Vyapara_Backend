@@ -11,6 +11,7 @@ import MaterialRateModel from '../models/materialRate';
 import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
+import PhysicalRedeemModel from '../models/physicalRedeem';
 
 import { Op } from 'sequelize';
 
@@ -39,6 +40,9 @@ export default class CustomersController {
   // @ts-ignore
   private digitalHoldingModel: DigitalHoldingModel;
 
+  // @ts-ignore
+  private physicalRedeemModel: PhysicalRedeemModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -56,6 +60,8 @@ export default class CustomersController {
     serviceFeeRateModel: ServiceFeeRateModel,
     // @ts-ignore
     digitalHoldingModel: DigitalHoldingModel,
+    // @ts-ignore
+    physicalRedeemModel: PhysicalRedeemModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
@@ -65,6 +71,7 @@ export default class CustomersController {
     this.taxRateModel = taxRateModel;
     this.serviceFeeRateModel = serviceFeeRateModel;
     this.digitalHoldingModel = digitalHoldingModel;
+    this.physicalRedeemModel = physicalRedeemModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -633,6 +640,61 @@ export default class CustomersController {
     logger.info(
       `deleteCustomerAddress - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
     );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getCustomerSummary(req: Request, res: Response) {
+    const requestBody = req.query;
+    // @ts-ignore
+    const { userId } = req.user;
+    const mandatoryFields = ['material_id'];
+    const missingFields = mandatoryFields.filter(
+      (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
+    );
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const purchaseWhere: any = {
+          customer_id: userId,
+          material_id: requestBody?.material_id,
+          purchase_status: 2,
+          payment_status: 2,
+        };
+
+        const purchaseRecords = await this.digitalPurchaseModel.findAll({
+          where: purchaseWhere,
+          attributes: { exclude: ['created_at', 'updated_at'] },
+        });
+        logger.info(`getCustomerSummary - fetched customer paid purchased ${JSON.stringify(purchaseRecords)}`);
+        if (purchaseRecords.length === 0) {
+          responseData = prepareJSONResponse({}, 'No purhcase found.', statusCodes.NOT_FOUND);
+        } else {
+          const total_purchased = purchaseRecords.reduce(
+            (sum: number, pur: any) => sum + Number(pur.grams_purchased || 0),
+            0,
+          );
+
+          const flattenedPurchases = purchaseRecords.map((pur: any) => ({
+            ...pur.toJSON(),
+          }));
+          responseData = prepareJSONResponse(
+            { total_purchased, purchased_data: flattenedPurchases },
+            'Success',
+            statusCodes.OK,
+          );
+        }
+      } catch (error) {
+        logger.error('getCustomerSummary - Error retrieving Customer summary.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(`getCustomerSummary - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { statusCodes } from '../utils/constants';
+import { predefinedRoles, statusCodes } from '../utils/constants';
 import { prepareJSONResponse } from '../utils/utils.js';
 import logger from '../utils/logger.js';
 import ProductsModel from '../models/products';
@@ -80,6 +80,8 @@ export default class AdminProductController {
   // eslint-disable-next-line class-methods-use-this
   async getAllProducts(req: Request, res: Response) {
     const requestBody = req.body;
+    // @ts-ignore
+    const { role_id } = req.user;
     let responseData: typeof prepareJSONResponse = {};
 
     try {
@@ -89,6 +91,9 @@ export default class AdminProductController {
       const productWhere: any = {};
       if (requestBody.material_id) {
         productWhere.material_id = Number(requestBody.material_id);
+      }
+      if (role_id === predefinedRoles?.User?.id) {
+        productWhere.status = 1;
       }
 
       const { rows, count } = await this.productsModel.findAndCountAll({
