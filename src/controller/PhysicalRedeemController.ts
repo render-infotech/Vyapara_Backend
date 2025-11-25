@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { predefinedRoles, statusCodes } from '../utils/constants';
+import { predefinedFlowStatus, predefinedRoles, predefinedVendorStatus, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -499,6 +499,275 @@ export default class PhysicalRedeemController {
       }
     }
     logger.info(`createPhysicalRedeem - Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async listRedemptions(req: Request, res: Response) {
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      let whereClause: any = {};
+
+      if (role_id === predefinedRoles.Admin.id) {
+        // Admin sees all
+        whereClause = {};
+      } else if (role_id === predefinedRoles.Vendor.id) {
+        // Vendor sees assigned redemptions
+        whereClause = { vendor_id: userId };
+      } else if (role_id === predefinedRoles.Rider.id) {
+        // Rider sees assigned redemptions
+        whereClause = { rider_id: userId };
+      } else if (role_id === predefinedRoles.User.id) {
+        // Customer sees their own redemptions
+        whereClause = { customer_id: userId };
+      } else {
+        // Other roles (if any) shouldn't see anything or forbidden
+        // For now, let's return empty or forbidden. Let's return forbidden for safety.
+        responseData = prepareJSONResponse({}, 'Access denied', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redemptions = await this.physicalRedeemModel.findAll({
+        where: whereClause,
+        order: [['created_at', 'DESC']],
+        include: [
+          {
+            model: this.customerAddressModel,
+            as: 'customerAddress',
+          },
+          {
+            model: this.usersModel,
+            as: 'user',
+            attributes: ['id', 'first_name', 'last_name', 'email', 'phone'],
+          },
+        ],
+      });
+
+      responseData = prepareJSONResponse({ redemptions }, 'Success', statusCodes.OK);
+    } catch (error) {
+      logger.error('listRedemptions - Error fetching redemptions.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+
+  // eslint-disable-next-line class-methods-use-this
+  async assignVendor(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Admin.id) {
+        responseData = prepareJSONResponse({}, 'Access denied. Only Admin can assign vendors.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id, vendor_id } = requestBody;
+
+      if (!redeem_id || !vendor_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id and vendor_id are required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const vendorRecord = await this.usersModel.findOne({
+        where: { id: vendor_id, role_id: predefinedRoles.Vendor.id },
+      });
+
+      if (!vendorRecord) {
+        responseData = prepareJSONResponse({}, 'Vendor not found or invalid vendor ID.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      redeemRecord.vendor_id = vendor_id;
+      redeemRecord.admin_status = predefinedFlowStatus.Admin_Approved.id; // Approved
+      redeemRecord.flow_status = predefinedFlowStatus.Vendor_Assigned.id; // Vendor Assigned
+      redeemRecord.vendor_status = predefinedVendorStatus.Pending.id; // Pending vendor response
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Vendor assigned successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('assignVendor - Error assigning vendor.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async rejectRedemption(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Admin.id) {
+        responseData = prepareJSONResponse({}, 'Access denied. Only Admin can reject redemptions.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Check if already processed
+      if (
+        redeemRecord.admin_status === predefinedFlowStatus.Admin_Approved.id ||
+        redeemRecord.admin_status === predefinedFlowStatus.Admin_Rejected.id
+      ) {
+        responseData = prepareJSONResponse(
+          {},
+          'Redemption request has already been processed.',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // 1. Update Status
+      redeemRecord.admin_status = predefinedFlowStatus.Admin_Rejected.id;
+      redeemRecord.flow_status = predefinedFlowStatus.Admin_Rejected.id;
+      redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id; // Optional: Mark vendor status as rejected if needed
+      await redeemRecord.save();
+
+      // 2. Reverse Transaction (Refund Grams)
+      const lastLedger = await this.digitalHoldingModel.findOne({
+        where: {
+          customer_id: redeemRecord.customer_id,
+          material_id: redeemRecord.material_id,
+          redeem_id: redeemRecord.id,
+        },
+        order: [['id', 'DESC']],
+      });
+
+      const currentBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
+      const refundGrams = Number(redeemRecord.grams_redeemed);
+      const newBalance = Number((currentBalance + refundGrams).toFixed(6));
+
+      await this.digitalHoldingModel.create({
+        customer_id: redeemRecord.customer_id,
+        material_id: redeemRecord.material_id,
+        purchase_id: null,
+        redeem_id: redeemRecord.id,
+        transaction_type_id: 2, // Deposit (Refund)
+        grams: refundGrams,
+        running_total_grams: newBalance,
+      });
+
+      logger.info(`rejectRedemption - Refunded ${refundGrams} grams to customer ${redeemRecord.customer_id}`);
+
+      responseData = prepareJSONResponse({}, 'Redemption rejected and grams refunded successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('rejectRedemption - Error rejecting redemption.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getRedemptionDetails(req: Request, res: Response) {
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    const { id } = req.params;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (!id) {
+        responseData = prepareJSONResponse({}, 'Redemption ID is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({
+        where: { id },
+        include: [
+          {
+            model: this.customerAddressModel,
+            as: 'customerAddress',
+          },
+          {
+            model: this.usersModel,
+            as: 'user',
+            attributes: ['id', 'first_name', 'last_name', 'email', 'phone'],
+          },
+        ],
+      });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Permission check: Customers can only see their own
+      if (role_id === predefinedRoles.User.id && redeemRecord.customer_id !== userId) {
+        responseData = prepareJSONResponse({}, 'Access denied.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+      // Vendors can only see assigned
+      if (role_id === predefinedRoles.Vendor.id && redeemRecord.vendor_id !== userId) {
+        responseData = prepareJSONResponse({}, 'Access denied.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+      // Riders can only see assigned
+      if (role_id === predefinedRoles.Rider.id && redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse({}, 'Access denied.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Helper to get name from constant object
+      const getStatusName = (statusId: number, constantsObj: any) => {
+        const entry = Object.values(constantsObj).find((item: any) => item.id === statusId);
+        // @ts-ignore
+        return entry ? entry.name : 'Unknown';
+      };
+
+      // Admin Status Mapping (1=Pending, 2=Approved, 3=Rejected)
+      const getAdminStatusName = (statusId: number) => {
+        switch (statusId) {
+          case 1: return 'Pending';
+          case 2: return 'Approved';
+          case 3: return 'Rejected';
+          default: return 'Unknown';
+        }
+      };
+
+      const result = {
+        ...redeemRecord.toJSON(),
+        admin_status_text: getAdminStatusName(redeemRecord.admin_status),
+        flow_status_text: getStatusName(redeemRecord.flow_status, predefinedFlowStatus),
+        vendor_status_text: getStatusName(redeemRecord.vendor_status || 0, predefinedVendorStatus),
+        rider_status_text: getStatusName(redeemRecord.rider_status || 0, predefinedVendorStatus), // Assuming Rider uses same status codes as Vendor for now
+      };
+
+      responseData = prepareJSONResponse({ redemption: result }, 'Success', statusCodes.OK);
+    } catch (error) {
+      logger.error('getRedemptionDetails - Error fetching details.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
     return res.status(responseData.status).json(responseData);
   }
 }

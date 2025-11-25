@@ -179,3 +179,64 @@ export const predefinedServiceFeeFor = {
     can_modify: 0,
   },
 };
+
+export const predefinedFlowStatus = {
+  Requested: {
+    id: 1,
+    name: 'Requested',
+    can_modify: 0,
+  },
+  Admin_Approved: {
+    id: 2,
+    name: 'Admin Approved',
+    can_modify: 0,
+  },
+  Admin_Rejected: {
+    id: 3,
+    name: 'Admin Rejected',
+    can_modify: 0,
+  },
+  Vendor_Assigned: {
+    id: 4,
+    name: 'Vendor Assigned',
+    can_modify: 0,
+  },
+  Rider_Assigned: {
+    id: 5,
+    name: 'Rider Assigned',
+    can_modify: 0,
+  },
+  Out_for_Delivery: {
+    id: 6,
+    name: 'Out for Delivery',
+    can_modify: 0,
+  },
+  Delivered: {
+    id: 7,
+    name: 'Delivered',
+    can_modify: 0,
+  },
+  Cancelled: {
+    id: 8,
+    name: 'Cancelled',
+    can_modify: 0,
+  },
+};
+
+export const predefinedVendorStatus = {
+  Pending: {
+    id: 0,
+    name: 'Pending',
+    can_modify: 0,
+  },
+  Approved: {
+    id: 1,
+    name: 'Approved',
+    can_modify: 0,
+  },
+  Rejected: {
+    id: 2,
+    name: 'Rejected',
+    can_modify: 0,
+  },
+};

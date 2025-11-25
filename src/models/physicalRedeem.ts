@@ -31,13 +31,12 @@ interface PhysicalRedeemAttributes {
 }
 
 // Optional attributes for creation
-interface PhysicalRedeemCreationAttributes extends Optional<PhysicalRedeemAttributes, 'id'> {}
+interface PhysicalRedeemCreationAttributes extends Optional<PhysicalRedeemAttributes, 'id'> { }
 
 // Define the PhysicalRedeem model
 class PhysicalRedeem
   extends Model<PhysicalRedeemAttributes, PhysicalRedeemCreationAttributes>
-  implements PhysicalRedeemAttributes
-{
+  implements PhysicalRedeemAttributes {
   public id!: number;
 
   public customer_id!: number;
@@ -103,8 +102,8 @@ class PhysicalRedeem
    */
   public static associate(models: any) {
     // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('User')) {
-      this.belongsTo(models.User, {
+    if (models.hasOwnProperty('Users')) {
+      this.belongsTo(models.Users, {
         foreignKey: 'customer_id',
         targetKey: 'id',
         as: 'user',
