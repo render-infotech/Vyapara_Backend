@@ -11,6 +11,7 @@ import MaterialRateModel from '../../../models/materialRate';
 import VendorDetailsModel from '../../../models/vendorDetails';
 import ProductsModel from '../../../models/products';
 import DigitalPurchaseModel from '../../../models/digitalPurchase';
+import OtpLogModel from '../../../models/otpLog';
 
 import ControllerRoutes from './physical_redeem';
 
@@ -23,6 +24,7 @@ const DigitalHolding = DigitalHoldingModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
 const Products = ProductsModel(sequelize);
 const DigitalPurchase = DigitalPurchaseModel(sequelize);
+const OtpLog = OtpLogModel(sequelize);
 
 PhysicalRedeem.associate({ Users, CustomerDetails, CustomerAddress, VendorDetails });
 Users.associate({
@@ -31,11 +33,13 @@ Users.associate({
   DigitalHolding,
   VendorDetails,
   PhysicalRedeem,
+  OtpLog,
 });
 CustomerDetails.associate({ Users, CustomerAddress, DigitalHolding, PhysicalRedeem });
 CustomerAddress.associate({ Users, CustomerDetails, PhysicalRedeem });
 DigitalHolding.associate({ Users, CustomerDetails });
 VendorDetails.associate({ Users, PhysicalRedeem });
+OtpLog.associate({ Users });
 
 const physicalRedeemController = new PhysicalRedeemController(
   PhysicalRedeem,
@@ -47,6 +51,7 @@ const physicalRedeemController = new PhysicalRedeemController(
   VendorDetails,
   Products,
   DigitalPurchase,
+  OtpLog,
 );
 
 const physicalRedeemControllerRoutes = ControllerRoutes(physicalRedeemController);

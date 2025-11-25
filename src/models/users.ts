@@ -5,6 +5,7 @@ import VendorDetails from './vendorDetails';
 import DigitalPurchase from './digitalPurchase';
 import DigitalHolding from './digitalHolding';
 import PhysicalRedeem from './physicalRedeem';
+import OtpLog from './otpLog';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -31,7 +32,7 @@ interface UserAttributes {
 }
 
 // Optional attributes for creation
-interface UserCreationAttributes extends Optional<UserAttributes, 'id'> {}
+interface UserCreationAttributes extends Optional<UserAttributes, 'id'> { }
 
 // Define the User model extending Sequelize Model and implementing UserAttributes
 class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
@@ -136,6 +137,13 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
       this.hasMany(models.PhysicalRedeem, {
         foreignKey: 'customer_id',
         as: 'physicalRedeem',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('OtpLog')) {
+      this.hasMany(models.OtpLog, {
+        foreignKey: 'user_id',
+        as: 'otpLogs',
       });
     }
   }

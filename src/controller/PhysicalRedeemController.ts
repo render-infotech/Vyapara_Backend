@@ -11,6 +11,9 @@ import DigitalHoldingModel from '../models/digitalHolding';
 import VendorDetailsModel from '../models/vendorDetails';
 import ProductsModel from '../models/products';
 import DigitalPurchaseModel from '../models/digitalPurchase';
+import OtpLogModel from '../models/otpLog';
+import { sendSms, generateNumericOtp, hashOtp } from '../utils/sms';
+import { Op } from 'sequelize';
 
 export default class PhysicalRedeemController {
   // @ts-ignore
@@ -40,6 +43,9 @@ export default class PhysicalRedeemController {
   // @ts-ignore
   private digitalPurchaseModel: DigitalPurchaseModel;
 
+  // @ts-ignore
+  private otpLogModel: OtpLogModel;
+
   constructor(
     // @ts-ignore
     physicalRedeemModel: PhysicalRedeemModel,
@@ -59,6 +65,8 @@ export default class PhysicalRedeemController {
     productsModel: ProductsModel,
     // @ts-ignore
     digitalPurchaseModel: DigitalPurchaseModel,
+    // @ts-ignore
+    otpLogModel: OtpLogModel,
   ) {
     this.physicalRedeemModel = physicalRedeemModel;
     this.usersModel = usersModel;
@@ -69,6 +77,7 @@ export default class PhysicalRedeemController {
     this.vendorDetailsModel = vendorDetailsModel;
     this.productsModel = productsModel;
     this.digitalPurchaseModel = digitalPurchaseModel;
+    this.otpLogModel = otpLogModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -195,13 +204,79 @@ export default class PhysicalRedeemController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async generateRedeemOtp(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.User.id) {
+        responseData = prepareJSONResponse({}, 'Not allowed for this role.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Check rate limiting
+      const lastOtp = await this.otpLogModel.findOne({
+        where: {
+          user_id: userId,
+          context: 'physical_redeem',
+          created_at: {
+            [Op.gte]: new Date(Date.now() - 60 * 1000), // 60 seconds cooldown
+          },
+        },
+      });
+
+      if (lastOtp) {
+        responseData = prepareJSONResponse({}, 'Please wait before requesting another OTP.', statusCodes.TOO_MANY_REQUESTS);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Fetch user phone number
+      const user = await this.usersModel.findOne({ where: { id: userId } });
+      if (!user || !user.phone) {
+        responseData = prepareJSONResponse({}, 'User phone number not found.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // const otp = generateNumericOtp(6);
+      const otp = 123456;
+      const otpHash = hashOtp(otp.toString());
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+      await this.otpLogModel.create({
+        user_id: userId,
+        otp_hash: otpHash,
+        expires_at: expiresAt,
+        context: 'physical_redeem',
+        attempts: 0,
+        is_used: false,
+      });
+
+      const message = `Your OTP for physical redeem is ${otp}. It is valid for 5 minutes.`;
+      const smsSent = await sendSms(user.phone, message);
+
+      if (smsSent) {
+        responseData = prepareJSONResponse({}, 'OTP sent successfully.', statusCodes.OK);
+      } else {
+        responseData = prepareJSONResponse({}, 'Failed to send OTP.', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    } catch (error) {
+      logger.error('generateRedeemOtp - Error generating OTP.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async createPhysicalRedeem(req: Request, res: Response) {
     const requestBody = req.body;
     // @ts-ignore
     const { userId, role_id } = req.user;
 
-    const { address_id, products, material_id } = req.body;
-    const mandatoryFields = ['address_id', 'products', 'material_id'];
+    const { address_id, products, material_id, otp } = req.body;
+    const mandatoryFields = ['address_id', 'products', 'material_id', 'otp'];
     const missingFields = mandatoryFields.filter(
       (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
     );
@@ -223,6 +298,41 @@ export default class PhysicalRedeemController {
         const addressRecord = await this.customerAddressModel.findOne({
           where: addressWhere,
         });
+
+        // OTP Verification
+        const otpRecord = await this.otpLogModel.findOne({
+          where: {
+            user_id: userId,
+            context: 'physical_redeem',
+            is_used: false,
+            expires_at: {
+              [Op.gte]: new Date(),
+            },
+          },
+          order: [['created_at', 'DESC']],
+        });
+
+        if (!otpRecord) {
+          responseData = prepareJSONResponse({}, 'Invalid or expired OTP.', statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        if (otpRecord.attempts >= 5) {
+          responseData = prepareJSONResponse({}, 'Too many failed attempts. OTP is locked. Try again after 5 minutes.', statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        const hashedInputOtp = hashOtp(otp.toString());
+        if (otpRecord.otp_hash !== hashedInputOtp) {
+          otpRecord.attempts += 1;
+          await otpRecord.save();
+          responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        // Mark OTP as used
+        otpRecord.is_used = true;
+        await otpRecord.save();
 
         logger.info(`createPhysicalRedeem - address details: ${JSON.stringify(addressRecord)} }`);
 

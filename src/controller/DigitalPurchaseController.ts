@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { predefinedRoles, predefinedTaxType, statusCodes } from '../utils/constants';
+import { predefinedRoles, predefinedTaxType, predefinedTransactionType, statusCodes } from '../utils/constants';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import logger from '../utils/logger.js';
@@ -567,8 +567,6 @@ export default class DigitalPurchaseController {
         { transaction },
       );
 
-      logger.info(`createDigitalPurchase - Added new entry in digitalPurchase table: ${JSON.stringify(newPurchase)} }`);
-
       const razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID!,
         key_secret: process.env.RAZORPAY_KEY_SECRET!,
@@ -600,7 +598,7 @@ export default class DigitalPurchaseController {
       return res.status(responseData.status).json(responseData);
     } catch (error) {
       logger.error('createDigitalPurchase - Error creating Digital Purchase .', error);
-      responseData = prepareJSONResponse({ error: error }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      responseData = prepareJSONResponse({ error: 'Error' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
 
     return res.status(responseData.status).json(responseData);
@@ -608,27 +606,33 @@ export default class DigitalPurchaseController {
 
   // eslint-disable-next-line class-methods-use-this
   async verifyPayment(req: Request, res: Response) {
+    logger.info("verifyPayment - Started");
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res
         .status(statusCodes.BAD_REQUEST)
-        .json(prepareJSONResponse({}, 'Missing required fields', statusCodes.BAD_REQUEST));
+        .json(prepareJSONResponse({}, "Missing required fields", statusCodes.BAD_REQUEST));
     }
 
+    let transaction;
+
     try {
+      // 1️⃣ Validate Razorpay Signature
       const generatedSignature = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest('hex');
+        .digest("hex");
 
       if (generatedSignature !== razorpay_signature) {
-        logger.error('verifyPayment - Invalid signature mismatch');
+        logger.error("verifyPayment - Invalid signature mismatch");
         return res
           .status(statusCodes.BAD_REQUEST)
-          .json(prepareJSONResponse({}, 'Signature verification failed', statusCodes.BAD_REQUEST));
+          .json(prepareJSONResponse({}, "Signature verification failed", statusCodes.BAD_REQUEST));
       }
 
+      // 2️⃣ Fetch Purchase
       const purchase = await this.digitalPurchaseModel.findOne({
         where: { razorpay_order_id },
       });
@@ -636,21 +640,69 @@ export default class DigitalPurchaseController {
       if (!purchase) {
         return res
           .status(statusCodes.NOT_FOUND)
-          .json(prepareJSONResponse({}, 'Purchase not found', statusCodes.NOT_FOUND));
+          .json(prepareJSONResponse({}, "Purchase not found", statusCodes.NOT_FOUND));
       }
 
+      // Already processed
       if (purchase.payment_status === 2) {
-        return res
-          .status(statusCodes.OK)
-          .json(prepareJSONResponse({ purchase_code: purchase.purchase_code }, 'Already verified', statusCodes.OK));
+        return res.status(statusCodes.OK).json(
+          prepareJSONResponse(
+            { purchase_code: purchase.purchase_code },
+            "Already verified",
+            statusCodes.OK
+          )
+        );
       }
 
+      // 3️⃣ SINGLE TRANSACTION FOR PAYMENT + HOLDING UPDATE
+      transaction = await this.digitalPurchaseModel.sequelize.transaction();
+
+      // Update purchase
       purchase.razorpay_payment_id = razorpay_payment_id;
       purchase.razorpay_signature = razorpay_signature;
       purchase.payment_status = 2;
       purchase.purchase_status = 2;
 
-      await purchase.save();
+      await purchase.save({ transaction });
+
+      // Required for ledger
+      const userId = purchase.customer_id;
+      const materialIdNum = purchase.material_id;
+      const gramsPurchased = Number(purchase.grams_purchased);
+
+      // Fetch last ledger row
+      const lastLedger = await this.digitalHoldingModel.findOne({
+        where: { customer_id: userId, material_id: materialIdNum },
+        order: [["id", "DESC"]],
+        transaction,
+      });
+
+      const previousBalance = lastLedger
+        ? Number(lastLedger.running_total_grams)
+        : 0.0;
+
+      const updatedBalance = Number((previousBalance + gramsPurchased).toFixed(6));
+
+      // Create new ledger row
+      const newHolding = await this.digitalHoldingModel.create(
+        {
+          customer_id: userId,
+          material_id: materialIdNum,
+          purchase_id: purchase.id,
+          redeem_id: null,
+          transaction_type_id: predefinedTransactionType.Buy.id,
+          grams: gramsPurchased,
+          running_total_grams: updatedBalance,
+        },
+        { transaction }
+      );
+
+      logger.info(
+        `verifyPayment - Ledger updated: ${JSON.stringify(newHolding)}`
+      );
+
+      // Commit only once
+      await transaction.commit();
 
       logger.info(`verifyPayment - Payment successful for order ${razorpay_order_id}`);
 
@@ -660,15 +712,20 @@ export default class DigitalPurchaseController {
             purchase_code: purchase.purchase_code,
             order: purchase,
           },
-          'Payment verified successfully',
-          statusCodes.OK,
-        ),
+          "Payment verified successfully",
+          statusCodes.OK
+        )
       );
+
     } catch (error) {
-      logger.error('verifyPayment - Error:', error);
+      // Rollback if transaction started
+      if (transaction) await transaction.rollback();
+
+      logger.error("verifyPayment - Error:", error);
+
       return res
         .status(statusCodes.INTERNAL_SERVER_ERROR)
-        .json(prepareJSONResponse({}, 'Server error', statusCodes.INTERNAL_SERVER_ERROR));
+        .json(prepareJSONResponse({}, "Server error", statusCodes.INTERNAL_SERVER_ERROR));
     }
   }
 

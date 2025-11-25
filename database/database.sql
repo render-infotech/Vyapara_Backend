@@ -271,3 +271,17 @@ CREATE TABLE IF NOT EXISTS `physical_redeem` (
     FOREIGN KEY (`vendor_id`) REFERENCES `vendor_details`(`vendor_id`)
     ON DELETE SET NULL
 );
+
+CREATE TABLE `otp_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ID of the otp log',
+  `user_id` bigint NOT NULL COMMENT 'User ID',
+  `otp_hash` varchar(255) NOT NULL COMMENT 'Hashed OTP',
+  `expires_at` datetime NOT NULL COMMENT 'Expiration time of the OTP',
+  `attempts` int NOT NULL DEFAULT '0' COMMENT 'Number of attempts',
+  `is_used` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Whether the OTP has been used',
+  `context` varchar(50) NOT NULL COMMENT 'Context of the OTP (e.g., physical_redeem)',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date and time when the record was created',
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `otp_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OTP Logs table';
