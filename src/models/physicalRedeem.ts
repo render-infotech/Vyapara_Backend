@@ -31,12 +31,13 @@ interface PhysicalRedeemAttributes {
 }
 
 // Optional attributes for creation
-interface PhysicalRedeemCreationAttributes extends Optional<PhysicalRedeemAttributes, 'id'> { }
+interface PhysicalRedeemCreationAttributes extends Optional<PhysicalRedeemAttributes, 'id'> {}
 
 // Define the PhysicalRedeem model
 class PhysicalRedeem
   extends Model<PhysicalRedeemAttributes, PhysicalRedeemCreationAttributes>
-  implements PhysicalRedeemAttributes {
+  implements PhysicalRedeemAttributes
+{
   public id!: number;
 
   public customer_id!: number;

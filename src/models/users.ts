@@ -32,7 +32,7 @@ interface UserAttributes {
 }
 
 // Optional attributes for creation
-interface UserCreationAttributes extends Optional<UserAttributes, 'id'> { }
+interface UserCreationAttributes extends Optional<UserAttributes, 'id'> {}
 
 // Define the User model extending Sequelize Model and implementing UserAttributes
 class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {

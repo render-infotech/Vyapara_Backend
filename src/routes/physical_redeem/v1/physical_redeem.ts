@@ -12,11 +12,7 @@ export default (physicalRedeemController: PhysicalRedeemController) => {
     physicalRedeemController.generateRedeemOtp.bind(physicalRedeemController),
   );
   router.get('/list', Authentication(), physicalRedeemController.listRedemptions.bind(physicalRedeemController));
-  router.post(
-    '/assign-vendor',
-    Authentication(),
-    physicalRedeemController.assignVendor.bind(physicalRedeemController),
-  );
+  router.post('/assign-vendor', Authentication(), physicalRedeemController.assignVendor.bind(physicalRedeemController));
   router.post('/reject', Authentication(), physicalRedeemController.rejectRedemption.bind(physicalRedeemController));
   router.get('/:id', Authentication(), physicalRedeemController.getRedemptionDetails.bind(physicalRedeemController));
   return router;

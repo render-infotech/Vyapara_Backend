@@ -228,7 +228,11 @@ export default class PhysicalRedeemController {
       });
 
       if (lastOtp) {
-        responseData = prepareJSONResponse({}, 'Please wait before requesting another OTP.', statusCodes.TOO_MANY_REQUESTS);
+        responseData = prepareJSONResponse(
+          {},
+          'Please wait before requesting another OTP.',
+          statusCodes.TOO_MANY_REQUESTS,
+        );
         return res.status(responseData.status).json(responseData);
       }
 
@@ -318,7 +322,11 @@ export default class PhysicalRedeemController {
         }
 
         if (otpRecord.attempts >= 5) {
-          responseData = prepareJSONResponse({}, 'Too many failed attempts. OTP is locked. Try again after 5 minutes.', statusCodes.BAD_REQUEST);
+          responseData = prepareJSONResponse(
+            {},
+            'Too many failed attempts. OTP is locked. Try again after 5 minutes.',
+            statusCodes.BAD_REQUEST,
+          );
           return res.status(responseData.status).json(responseData);
         }
 
@@ -555,7 +563,6 @@ export default class PhysicalRedeemController {
     return res.status(responseData.status).json(responseData);
   }
 
-
   // eslint-disable-next-line class-methods-use-this
   async assignVendor(req: Request, res: Response) {
     const requestBody = req.body;
@@ -616,7 +623,11 @@ export default class PhysicalRedeemController {
 
     try {
       if (role_id !== predefinedRoles.Admin.id) {
-        responseData = prepareJSONResponse({}, 'Access denied. Only Admin can reject redemptions.', statusCodes.FORBIDDEN);
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Admin can reject redemptions.',
+          statusCodes.FORBIDDEN,
+        );
         return res.status(responseData.status).json(responseData);
       }
 
@@ -747,10 +758,14 @@ export default class PhysicalRedeemController {
       // Admin Status Mapping (1=Pending, 2=Approved, 3=Rejected)
       const getAdminStatusName = (statusId: number) => {
         switch (statusId) {
-          case 1: return 'Pending';
-          case 2: return 'Approved';
-          case 3: return 'Rejected';
-          default: return 'Unknown';
+          case 1:
+            return 'Pending';
+          case 2:
+            return 'Approved';
+          case 3:
+            return 'Rejected';
+          default:
+            return 'Unknown';
         }
       };
 
