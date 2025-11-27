@@ -606,14 +606,14 @@ export default class DigitalPurchaseController {
 
   // eslint-disable-next-line class-methods-use-this
   async verifyPayment(req: Request, res: Response) {
-    logger.info("verifyPayment - Started");
+    logger.info('verifyPayment - Started');
 
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res
         .status(statusCodes.BAD_REQUEST)
-        .json(prepareJSONResponse({}, "Missing required fields", statusCodes.BAD_REQUEST));
+        .json(prepareJSONResponse({}, 'Missing required fields', statusCodes.BAD_REQUEST));
     }
 
     let transaction;
@@ -621,15 +621,15 @@ export default class DigitalPurchaseController {
     try {
       // 1️⃣ Validate Razorpay Signature
       const generatedSignature = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest("hex");
+        .digest('hex');
 
       if (generatedSignature !== razorpay_signature) {
-        logger.error("verifyPayment - Invalid signature mismatch");
+        logger.error('verifyPayment - Invalid signature mismatch');
         return res
           .status(statusCodes.BAD_REQUEST)
-          .json(prepareJSONResponse({}, "Signature verification failed", statusCodes.BAD_REQUEST));
+          .json(prepareJSONResponse({}, 'Signature verification failed', statusCodes.BAD_REQUEST));
       }
 
       // 2️⃣ Fetch Purchase
@@ -640,18 +640,14 @@ export default class DigitalPurchaseController {
       if (!purchase) {
         return res
           .status(statusCodes.NOT_FOUND)
-          .json(prepareJSONResponse({}, "Purchase not found", statusCodes.NOT_FOUND));
+          .json(prepareJSONResponse({}, 'Purchase not found', statusCodes.NOT_FOUND));
       }
 
       // Already processed
       if (purchase.payment_status === 2) {
-        return res.status(statusCodes.OK).json(
-          prepareJSONResponse(
-            { purchase_code: purchase.purchase_code },
-            "Already verified",
-            statusCodes.OK
-          )
-        );
+        return res
+          .status(statusCodes.OK)
+          .json(prepareJSONResponse({ purchase_code: purchase.purchase_code }, 'Already verified', statusCodes.OK));
       }
 
       // 3️⃣ SINGLE TRANSACTION FOR PAYMENT + HOLDING UPDATE
@@ -673,13 +669,11 @@ export default class DigitalPurchaseController {
       // Fetch last ledger row
       const lastLedger = await this.digitalHoldingModel.findOne({
         where: { customer_id: userId, material_id: materialIdNum },
-        order: [["id", "DESC"]],
+        order: [['id', 'DESC']],
         transaction,
       });
 
-      const previousBalance = lastLedger
-        ? Number(lastLedger.running_total_grams)
-        : 0.0;
+      const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
 
       const updatedBalance = Number((previousBalance + gramsPurchased).toFixed(6));
 
@@ -694,12 +688,10 @@ export default class DigitalPurchaseController {
           grams: gramsPurchased,
           running_total_grams: updatedBalance,
         },
-        { transaction }
+        { transaction },
       );
 
-      logger.info(
-        `verifyPayment - Ledger updated: ${JSON.stringify(newHolding)}`
-      );
+      logger.info(`verifyPayment - Ledger updated: ${JSON.stringify(newHolding)}`);
 
       // Commit only once
       await transaction.commit();
@@ -712,20 +704,19 @@ export default class DigitalPurchaseController {
             purchase_code: purchase.purchase_code,
             order: purchase,
           },
-          "Payment verified successfully",
-          statusCodes.OK
-        )
+          'Payment verified successfully',
+          statusCodes.OK,
+        ),
       );
-
     } catch (error) {
       // Rollback if transaction started
       if (transaction) await transaction.rollback();
 
-      logger.error("verifyPayment - Error:", error);
+      logger.error('verifyPayment - Error:', error);
 
       return res
         .status(statusCodes.INTERNAL_SERVER_ERROR)
-        .json(prepareJSONResponse({}, "Server error", statusCodes.INTERNAL_SERVER_ERROR));
+        .json(prepareJSONResponse({}, 'Server error', statusCodes.INTERNAL_SERVER_ERROR));
     }
   }
 
