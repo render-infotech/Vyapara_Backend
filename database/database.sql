@@ -272,7 +272,7 @@ CREATE TABLE IF NOT EXISTS `physical_redeem` (
     ON DELETE SET NULL
 );
 
-CREATE TABLE `otp_logs` (
+CREATE TABLE IF NOT EXISTS `otp_logs` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ID of the otp log',
   `user_id` bigint NOT NULL COMMENT 'User ID',
   `otp_hash` varchar(255) NOT NULL COMMENT 'Hashed OTP',
