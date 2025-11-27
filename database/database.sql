@@ -285,3 +285,17 @@ CREATE TABLE IF NOT EXISTS `otp_logs` (
   KEY `user_id` (`user_id`),
   CONSTRAINT `otp_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OTP Logs table';
+
+CREATE TABLE IF NOT EXISTS `rider_details` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `rider_id` bigint NOT NULL COMMENT 'User ID of the rider',
+  `vendor_id` bigint NOT NULL COMMENT 'User ID of the vendor who owns this rider',
+  `status` tinyint NOT NULL DEFAULT '1' COMMENT '1 = Active, 0 = Inactive',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `rider_id` (`rider_id`),
+  KEY `vendor_id` (`vendor_id`),
+  CONSTRAINT `rider_details_ibfk_1` FOREIGN KEY (`rider_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `rider_details_ibfk_2` FOREIGN KEY (`vendor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Rider details and vendor association';

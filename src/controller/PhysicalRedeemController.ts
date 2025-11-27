@@ -9,6 +9,7 @@ import CustomerAddressModel from '../models/customerAddress';
 import MaterialRateModel from '../models/materialRate';
 import DigitalHoldingModel from '../models/digitalHolding';
 import VendorDetailsModel from '../models/vendorDetails';
+import RiderDetailsModel from '../models/riderDetails';
 import ProductsModel from '../models/products';
 import DigitalPurchaseModel from '../models/digitalPurchase';
 import OtpLogModel from '../models/otpLog';
@@ -38,6 +39,9 @@ export default class PhysicalRedeemController {
   private vendorDetailsModel: VendorDetailsModel;
 
   // @ts-ignore
+  private riderDetailsModel: RiderDetailsModel;
+
+  // @ts-ignore
   private productsModel: ProductsModel;
 
   // @ts-ignore
@@ -62,6 +66,8 @@ export default class PhysicalRedeemController {
     // @ts-ignore
     vendorDetailsModel: VendorDetailsModel,
     // @ts-ignore
+    riderDetailsModel: RiderDetailsModel,
+    // @ts-ignore
     productsModel: ProductsModel,
     // @ts-ignore
     digitalPurchaseModel: DigitalPurchaseModel,
@@ -75,6 +81,7 @@ export default class PhysicalRedeemController {
     this.materialRateModel = materialRateModel;
     this.digitalHoldingModel = digitalHoldingModel;
     this.vendorDetailsModel = vendorDetailsModel;
+    this.riderDetailsModel = riderDetailsModel;
     this.productsModel = productsModel;
     this.digitalPurchaseModel = digitalPurchaseModel;
     this.otpLogModel = otpLogModel;
@@ -205,7 +212,7 @@ export default class PhysicalRedeemController {
 
   // eslint-disable-next-line class-methods-use-this
   async generateRedeemOtp(req: Request, res: Response) {
-    const requestBody = req.body;
+    // const requestBody = req.body;
     // @ts-ignore
     const { userId, role_id } = req.user;
     let responseData: typeof prepareJSONResponse = {};
@@ -452,7 +459,7 @@ export default class PhysicalRedeemController {
           const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
           const updatedBalance = Number((previousBalance - totalRequiredGrams).toFixed(6));
 
-          if (Number(previousBalance < totalRequiredGrams)) {
+          if (previousBalance < totalRequiredGrams) {
             responseData = prepareJSONResponse(
               {},
               'Not enough grams for redeem as per current holdings',
@@ -478,23 +485,33 @@ export default class PhysicalRedeemController {
               products,
             };
 
-            const redeemRecord = await this.physicalRedeemModel.create(redeemData);
+            const result = await this.physicalRedeemModel.sequelize?.transaction(async (t) => {
+              const redeemRecord = await this.physicalRedeemModel.create(redeemData, { transaction: t });
 
-            const newHolding = await this.digitalHoldingModel.create({
-              customer_id: userId,
-              material_id,
-              purchase_id: null,
-              redeem_id: redeemRecord?.id,
-              transaction_type_id: 3,
-              grams: totalRequiredGrams,
-              running_total_grams: updatedBalance,
+              const newHolding = await this.digitalHoldingModel.create(
+                {
+                  customer_id: userId,
+                  material_id,
+                  purchase_id: null,
+                  redeem_id: redeemRecord?.id,
+                  transaction_type_id: 3,
+                  grams: totalRequiredGrams,
+                  running_total_grams: updatedBalance,
+                },
+                { transaction: t },
+              );
+
+              return { redeemRecord, newHolding };
             });
-            logger.info(`createPhysicalRedeem - Ledger updated for physical redeem: ${JSON.stringify(newHolding)}`);
+
+            logger.info(
+              `createPhysicalRedeem - Ledger updated for physical redeem: ${JSON.stringify(result?.newHolding)}`,
+            );
 
             responseData = prepareJSONResponse(
               {
-                redeem_code: redeemRecord.redeem_code,
-                grams_after: redeemRecord.grams_after_redeem,
+                redeem_code: result?.redeemRecord.redeem_code,
+                grams_after: result?.redeemRecord.grams_after_redeem,
               },
               'Success',
               statusCodes.OK,
@@ -615,6 +632,76 @@ export default class PhysicalRedeemController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async assignRider(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Vendor.id) {
+        responseData = prepareJSONResponse({}, 'Access denied. Only Vendors can assign riders.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id, rider_id } = requestBody;
+
+      if (!redeem_id || !rider_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id and rider_id are required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.vendor_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. You can only assign riders to your assigned redemptions.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.vendor_status !== predefinedVendorStatus.Approved.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'You must accept the redemption request before assigning a rider.',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Verify rider belongs to vendor
+      // @ts-ignore
+      const riderDetail = await this.riderDetailsModel.findOne({
+        where: { rider_id, vendor_id: userId, status: 1 },
+      });
+
+      if (!riderDetail) {
+        responseData = prepareJSONResponse({}, 'Rider not found or not assigned to you.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      redeemRecord.rider_id = rider_id;
+      redeemRecord.rider_status = predefinedVendorStatus.Pending.id; // Pending rider acceptance (if we had that flow, or just assigned)
+      redeemRecord.flow_status = predefinedFlowStatus.Rider_Assigned.id; // Rider Assigned
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Rider assigned successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('assignRider - Error assigning rider.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async rejectRedemption(req: Request, res: Response) {
     const requestBody = req.body;
     // @ts-ignore
@@ -693,6 +780,123 @@ export default class PhysicalRedeemController {
       responseData = prepareJSONResponse({}, 'Redemption rejected and grams refunded successfully.', statusCodes.OK);
     } catch (error) {
       logger.error('rejectRedemption - Error rejecting redemption.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async acceptRedemptionByVendor(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Vendor.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Vendors can accept redemptions.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.vendor_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.vendor_status === predefinedVendorStatus.Approved.id) {
+        responseData = prepareJSONResponse({}, 'Redemption already accepted.', statusCodes.OK);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      redeemRecord.vendor_status = predefinedVendorStatus.Approved.id;
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Redemption accepted successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('acceptRedemptionByVendor - Error accepting redemption.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async rejectRedemptionByVendor(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Vendor.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Vendors can reject redemptions.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id, remarks } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (!remarks) {
+        responseData = prepareJSONResponse({}, 'Remarks are required for rejection.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.vendor_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Revert status so Admin can see it's back in their court (but marked as rejected by this vendor)
+      redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id;
+      redeemRecord.flow_status = predefinedFlowStatus.Admin_Approved.id; // Back to Admin Approved state
+      redeemRecord.remarks = remarks;
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Redemption rejected successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('rejectRedemptionByVendor - Error rejecting redemption.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
 

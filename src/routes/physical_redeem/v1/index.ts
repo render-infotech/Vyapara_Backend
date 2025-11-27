@@ -9,6 +9,7 @@ import CustomerAddressModel from '../../../models/customerAddress';
 import DigitalHoldingModel from '../../../models/digitalHolding';
 import MaterialRateModel from '../../../models/materialRate';
 import VendorDetailsModel from '../../../models/vendorDetails';
+import RiderDetailsModel from '../../../models/riderDetails';
 import ProductsModel from '../../../models/products';
 import DigitalPurchaseModel from '../../../models/digitalPurchase';
 import OtpLogModel from '../../../models/otpLog';
@@ -22,6 +23,7 @@ const CustomerAddress = CustomerAddressModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
 const DigitalHolding = DigitalHoldingModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
+const RiderDetails = RiderDetailsModel(sequelize);
 const Products = ProductsModel(sequelize);
 const DigitalPurchase = DigitalPurchaseModel(sequelize);
 const OtpLog = OtpLogModel(sequelize);
@@ -49,6 +51,7 @@ const physicalRedeemController = new PhysicalRedeemController(
   MaterialRate,
   DigitalHolding,
   VendorDetails,
+  RiderDetails,
   Products,
   DigitalPurchase,
   OtpLog,
