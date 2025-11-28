@@ -25,6 +25,31 @@ export default (physicalRedeemController: PhysicalRedeemController) => {
     Authentication(),
     physicalRedeemController.rejectRedemptionByVendor.bind(physicalRedeemController),
   );
+  router.post(
+    '/rider/accept',
+    Authentication(),
+    physicalRedeemController.acceptRedemptionByRider.bind(physicalRedeemController),
+  );
+  router.post(
+    '/rider/reject',
+    Authentication(),
+    physicalRedeemController.rejectRedemptionByRider.bind(physicalRedeemController),
+  );
+  router.post(
+    '/out-for-delivery',
+    Authentication(),
+    physicalRedeemController.markOutForDelivery.bind(physicalRedeemController),
+  );
+  router.post(
+    '/resend-delivery-otp',
+    Authentication(),
+    physicalRedeemController.resendDeliveryOtp.bind(physicalRedeemController),
+  );
+  router.post(
+    '/complete-delivery',
+    Authentication(),
+    physicalRedeemController.markDelivered.bind(physicalRedeemController),
+  );
   router.get('/:id', Authentication(), physicalRedeemController.getRedemptionDetails.bind(physicalRedeemController));
   return router;
 };

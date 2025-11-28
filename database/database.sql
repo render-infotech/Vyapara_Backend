@@ -272,6 +272,7 @@ CREATE TABLE IF NOT EXISTS `physical_redeem` (
     ON DELETE SET NULL
 );
 
+-- Created new columns for OTP logs - by Afrid
 CREATE TABLE IF NOT EXISTS `otp_logs` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ID of the otp log',
   `user_id` bigint NOT NULL COMMENT 'User ID',
@@ -286,6 +287,7 @@ CREATE TABLE IF NOT EXISTS `otp_logs` (
   CONSTRAINT `otp_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OTP Logs table';
 
+-- Created new columns for rider details - by Afrid
 CREATE TABLE IF NOT EXISTS `rider_details` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `rider_id` bigint NOT NULL COMMENT 'User ID of the rider',
@@ -299,3 +301,6 @@ CREATE TABLE IF NOT EXISTS `rider_details` (
   CONSTRAINT `rider_details_ibfk_1` FOREIGN KEY (`rider_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `rider_details_ibfk_2` FOREIGN KEY (`vendor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Rider details and vendor association';
+
+-- Created new columns for physical redeem - by Afrid
+ALTER TABLE `physical_redeem` ADD COLUMN `signature` VARCHAR(255) DEFAULT NULL COMMENT 'URL of the delivery signature';

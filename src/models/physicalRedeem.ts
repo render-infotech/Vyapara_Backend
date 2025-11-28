@@ -26,6 +26,7 @@ interface PhysicalRedeemAttributes {
   flow_status: number; // 1 = Requested, 2 = Admin Approved,  3 = Admin Rejected, 4 = Vendor Assigned, 5 = Rider Assigned, 6 = Out for Delivery, 7 = Delivered, 8 = Cancelled
 
   remarks?: string;
+  signature?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -73,6 +74,8 @@ class PhysicalRedeem
   public flow_status!: number;
 
   public remarks?: string;
+
+  public signature?: string;
 
   public created_at!: Date;
 
@@ -245,6 +248,11 @@ const PhysicalRedeemModel = (sequelize: Sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: 'Optional remarks by admin/vendor/rider',
+      },
+      signature: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        comment: 'URL of the delivery signature',
       },
       created_at: {
         type: DataTypes.DATE,

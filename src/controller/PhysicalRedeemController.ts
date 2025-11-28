@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
-import { predefinedFlowStatus, predefinedRoles, predefinedVendorStatus, statusCodes } from '../utils/constants';
+import {
+  predefinedFlowStatus,
+  predefinedRiderStatus,
+  predefinedRoles,
+  predefinedVendorStatus,
+  statusCodes,
+} from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -13,7 +19,9 @@ import RiderDetailsModel from '../models/riderDetails';
 import ProductsModel from '../models/products';
 import DigitalPurchaseModel from '../models/digitalPurchase';
 import OtpLogModel from '../models/otpLog';
-import { sendSms, generateNumericOtp, hashOtp } from '../utils/sms';
+import { singleImageUpload } from '../utils/s3uploads';
+// import { sendSms, generateNumericOtp, hashOtp } from '../utils/sms';
+import { sendSms, hashOtp } from '../utils/sms';
 import { Op } from 'sequelize';
 
 export default class PhysicalRedeemController {
@@ -748,7 +756,8 @@ export default class PhysicalRedeemController {
       // 1. Update Status
       redeemRecord.admin_status = predefinedFlowStatus.Admin_Rejected.id;
       redeemRecord.flow_status = predefinedFlowStatus.Admin_Rejected.id;
-      redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id; // Optional: Mark vendor status as rejected if needed
+      redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id;
+      redeemRecord.rider_status = predefinedRiderStatus.Rejected.id;
       await redeemRecord.save();
 
       // 2. Reverse Transaction (Refund Grams)
@@ -984,6 +993,403 @@ export default class PhysicalRedeemController {
       responseData = prepareJSONResponse({ redemption: result }, 'Success', statusCodes.OK);
     } catch (error) {
       logger.error('getRedemptionDetails - Error fetching details.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async acceptRedemptionByRider(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Rider.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Riders can accept redemptions.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      redeemRecord.rider_status = predefinedRiderStatus.Approved.id;
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Redemption accepted successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('acceptRedemptionByRider - Error accepting redemption.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async rejectRedemptionByRider(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Rider.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Riders can reject redemptions.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id, remarks } = requestBody;
+
+      if (!redeem_id || !remarks) {
+        responseData = prepareJSONResponse({}, 'redeem_id and remarks are required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      redeemRecord.rider_status = predefinedRiderStatus.Rejected.id;
+      redeemRecord.flow_status = predefinedFlowStatus.Vendor_Assigned.id;
+      redeemRecord.remarks = remarks;
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Redemption rejected successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('rejectRedemptionByRider - Error rejecting redemption.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async markOutForDelivery(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Rider.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Riders can update delivery status.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_status !== predefinedVendorStatus.Approved.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'You must accept the redemption request before marking it as Out for Delivery.',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.flow_status !== predefinedFlowStatus.Rider_Assigned.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Invalid status transition. Status must be "Rider Assigned" to mark as "Out for Delivery".',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Update status
+      redeemRecord.flow_status = predefinedFlowStatus.Out_for_Delivery.id;
+      await redeemRecord.save();
+
+      // Generate and Send OTP to Customer
+      const customer = await this.usersModel.findOne({ where: { id: redeemRecord.customer_id } });
+      if (customer && customer.phone) {
+        // const otp = generateNumericOtp(6);
+        const otp = 123456;
+        const otpHash = hashOtp(otp.toString());
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        await this.otpLogModel.create({
+          user_id: redeemRecord.customer_id,
+          otp_hash: otpHash,
+          expires_at: expiresAt,
+          context: `delivery_verify_${redeem_id}`,
+          attempts: 0,
+          is_used: false,
+        });
+
+        const message = `Your order #${redeemRecord.redeem_code} is out for delivery. Share OTP ${otp} with the rider only upon receiving the package.`;
+        await sendSms(customer.phone, message);
+      }
+
+      responseData = prepareJSONResponse({}, 'Order marked as Out for Delivery. OTP sent to customer.', statusCodes.OK);
+    } catch (error) {
+      logger.error('markOutForDelivery - Error updating status.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async resendDeliveryOtp(req: Request, res: Response) {
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Rider.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Riders can resend delivery OTP.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id } = requestBody;
+
+      if (!redeem_id) {
+        responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.flow_status !== predefinedFlowStatus.Out_for_Delivery.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Invalid status. Order must be "Out for Delivery" to resend OTP.',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Generate and Send OTP to Customer
+      const customer = await this.usersModel.findOne({ where: { id: redeemRecord.customer_id } });
+      if (customer && customer.phone) {
+        // const otp = generateNumericOtp(6);
+        const otp = 123456;
+        const otpHash = hashOtp(otp.toString());
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        await this.otpLogModel.create({
+          user_id: redeemRecord.customer_id,
+          otp_hash: otpHash,
+          expires_at: expiresAt,
+          context: `delivery_verify_${redeem_id}`,
+          attempts: 0,
+          is_used: false,
+        });
+
+        const message = `Your order #${redeemRecord.redeem_code} is out for delivery. Share OTP ${otp} with the rider only upon receiving the package.`;
+        await sendSms(customer.phone, message);
+      }
+
+      responseData = prepareJSONResponse({}, 'OTP resent successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('resendDeliveryOtp - Error resending OTP.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async markDelivered(req: Request, res: Response) {
+    let fileLocation = null;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        singleImageUpload('signature')(req, res, (err: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      // @ts-ignore
+      fileLocation = req?.file?.location;
+    } catch (error) {
+      logger.error('Error in uploading signature for markDelivered', error);
+    }
+
+    const requestBody = req.body;
+    // @ts-ignore
+    const { userId, role_id } = req.user;
+    let responseData: typeof prepareJSONResponse = {};
+
+    try {
+      if (role_id !== predefinedRoles.Rider.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. Only Riders can update delivery status.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { redeem_id, otp } = requestBody;
+
+      if (!redeem_id || !otp) {
+        responseData = prepareJSONResponse({}, 'redeem_id and otp are required.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+
+      if (!redeemRecord) {
+        responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.rider_id !== userId) {
+        responseData = prepareJSONResponse(
+          {},
+          'Access denied. This redemption is not assigned to you.',
+          statusCodes.FORBIDDEN,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (redeemRecord.flow_status !== predefinedFlowStatus.Out_for_Delivery.id) {
+        responseData = prepareJSONResponse(
+          {},
+          'Invalid status transition. Status must be "Out for Delivery" to mark as "Delivered".',
+          statusCodes.BAD_REQUEST,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Verify OTP
+      const otpRecord = await this.otpLogModel.findOne({
+        where: {
+          user_id: redeemRecord.customer_id,
+          context: `delivery_verify_${redeem_id}`,
+          is_used: false,
+          expires_at: {
+            [Op.gte]: new Date(),
+          },
+        },
+        order: [['created_at', 'DESC']],
+      });
+
+      if (!otpRecord) {
+        responseData = prepareJSONResponse({}, 'Invalid or expired OTP.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      if (otpRecord.attempts >= 5) {
+        responseData = prepareJSONResponse({}, 'Too many failed attempts. OTP is locked.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const hashedInputOtp = hashOtp(otp.toString());
+      if (otpRecord.otp_hash !== hashedInputOtp) {
+        otpRecord.attempts += 1;
+        await otpRecord.save();
+        responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
+      // Mark OTP as used
+      otpRecord.is_used = true;
+      await otpRecord.save();
+
+      // Update Status
+      redeemRecord.flow_status = predefinedFlowStatus.Delivered.id;
+      redeemRecord.rider_status = predefinedRiderStatus.Approved.id; // Mark rider task as completed/approved
+
+      if (fileLocation) {
+        redeemRecord.signature = fileLocation;
+      }
+
+      await redeemRecord.save();
+
+      responseData = prepareJSONResponse({}, 'Order delivered successfully.', statusCodes.OK);
+    } catch (error) {
+      logger.error('markDelivered - Error updating status.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
 

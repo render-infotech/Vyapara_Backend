@@ -240,3 +240,20 @@ export const predefinedVendorStatus = {
     can_modify: 0,
   },
 };
+export const predefinedRiderStatus = {
+  Pending: {
+    id: 0,
+    name: 'Pending',
+    can_modify: 0,
+  },
+  Approved: {
+    id: 1,
+    name: 'Approved',
+    can_modify: 0,
+  },
+  Rejected: {
+    id: 2,
+    name: 'Rejected',
+    can_modify: 0,
+  },
+};
