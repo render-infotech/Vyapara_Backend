@@ -44,6 +44,7 @@ functions:
   - ${file(./src/routes/digital_holding/v1/digital_holding.yml)}
   - ${file(./src/routes/physical_redeem/v1/physical_redeem.yml)}
   - ${file(./src/routes/riders/v1/riders.yml)}
+  - ${file(./src/routes/dashboard/v1/dashboard.yml)}
 
 plugins:
   - serverless-offline
