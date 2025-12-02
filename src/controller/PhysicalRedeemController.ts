@@ -539,9 +539,14 @@ export default class PhysicalRedeemController {
   async listRedemptions(req: Request, res: Response) {
     // @ts-ignore
     const { userId, role_id } = req.user;
+    const { page, limit } = req.query;
     let responseData: typeof prepareJSONResponse = {};
 
     try {
+      const limitNum = limit ? Number(limit) : 15;
+      const pageNum = page ? Number(page) : 1;
+      const offset = (pageNum - 1) * limitNum;
+
       let whereClause: any = {};
 
       if (role_id === predefinedRoles.Admin.id) {
@@ -563,9 +568,11 @@ export default class PhysicalRedeemController {
         return res.status(responseData.status).json(responseData);
       }
 
-      const redemptions = await this.physicalRedeemModel.findAll({
+      const { rows, count } = await this.physicalRedeemModel.findAndCountAll({
         where: whereClause,
         order: [['created_at', 'DESC']],
+        limit: limitNum,
+        offset,
         include: [
           {
             model: this.customerAddressModel,
@@ -579,7 +586,17 @@ export default class PhysicalRedeemController {
         ],
       });
 
-      responseData = prepareJSONResponse({ redemptions }, 'Success', statusCodes.OK);
+      responseData = prepareJSONResponse(
+        {
+          redemptions: rows,
+          total: count,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.ceil(count / limitNum),
+        },
+        'Success',
+        statusCodes.OK,
+      );
     } catch (error) {
       logger.error('listRedemptions - Error fetching redemptions.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
