@@ -568,6 +568,27 @@ export default class PhysicalRedeemController {
         return res.status(responseData.status).json(responseData);
       }
 
+      // Helper to get name from constant object
+      const getStatusName = (statusId: number, constantsObj: any) => {
+        const entry = Object.values(constantsObj).find((item: any) => item.id === statusId);
+        // @ts-ignore
+        return entry ? entry.name : 'Unknown';
+      };
+
+      // Admin Status Mapping (1=Pending, 2=Approved, 3=Rejected)
+      const getAdminStatusName = (statusId: number) => {
+        switch (statusId) {
+          case 1:
+            return 'Pending';
+          case 2:
+            return 'Approved';
+          case 3:
+            return 'Rejected';
+          default:
+            return 'Unknown';
+        }
+      };
+
       const { rows, count } = await this.physicalRedeemModel.findAndCountAll({
         where: whereClause,
         order: [['created_at', 'DESC']],
@@ -586,9 +607,20 @@ export default class PhysicalRedeemController {
         ],
       });
 
+      const mappedRows = rows.map((rec: any) => {
+        const item = rec.toJSON();
+        return {
+          ...item,
+          admin_status_text: getAdminStatusName(item.admin_status),
+          flow_status_text: getStatusName(item.flow_status, predefinedFlowStatus),
+          vendor_status_text: getStatusName(item.vendor_status || 0, predefinedVendorStatus),
+          rider_status_text: getStatusName(item.rider_status || 0, predefinedVendorStatus),
+        };
+      });
+
       responseData = prepareJSONResponse(
         {
-          redemptions: rows,
+          redemptions: mappedRows,
           total: count,
           page: pageNum,
           limit: limitNum,
