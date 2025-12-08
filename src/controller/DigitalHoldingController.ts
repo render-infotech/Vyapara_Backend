@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
-import { predefinedMaterials, predefinedTaxType, statusCodes } from '../utils/constants';
+import {
+  predefinedFlowStatus,
+  predefinedMaterials,
+  predefinedTaxType,
+  predefinedTransactionType,
+  statusCodes,
+} from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
@@ -11,7 +17,6 @@ import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
 import PhysicalRedeemModel from '../models/physicalRedeem';
-
 import { Op } from 'sequelize';
 
 export default class DigitalHoldingController {
@@ -433,8 +438,10 @@ export default class DigitalHoldingController {
     // @ts-ignore
     const { userId } = req.user;
     const { start_date, end_date } = requestBody;
-    const mandatoryFields = [];
-    const missingFields = mandatoryFields.filter((field) => !requestBody[field] && requestBody[field] !== 0);
+    const mandatoryFields: string[] = [];
+    const missingFields = mandatoryFields.filter(
+      (field) => requestBody[field] === undefined || requestBody[field] === null,
+    );
 
     let responseData: typeof prepareJSONResponse = {};
 
@@ -444,178 +451,276 @@ export default class DigitalHoldingController {
         `Missing required fields: ${missingFields.join(', ')}`,
         statusCodes.BAD_REQUEST,
       );
-    } else {
-      try {
-        const dateCheck = await this.validateDateRange(start_date, end_date);
-
-        if (!dateCheck.isValid) {
-          responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
-          return res.status(responseData.status).json(responseData);
-        }
-
-        const { start, end } = dateCheck;
-        const holdingsWhere: any = { customer_id: userId };
-
-        if (start && end) {
-          holdingsWhere.created_at = { [Op.between]: [start, end] };
-        } else if (start_date) {
-          holdingsWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
-        } else if (end_date) {
-          holdingsWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
-        }
-
-        const allHoldings = await this.digitalHoldingModel.findAll({
-          where: holdingsWhere,
-          raw: true,
-        });
-
-        const latestHoldingsMap: Record<number, number> = {};
-
-        for (const row of allHoldings) {
-          const mId = row.material_id;
-          const grams = Number(row.running_total_grams || 0);
-
-          if (!latestHoldingsMap[mId] || grams > latestHoldingsMap[mId]) {
-            latestHoldingsMap[mId] = grams;
-          }
-        }
-
-        const latestHoldings = Object.entries(latestHoldingsMap).map(([material_id, grams]) => ({
-          material_id: Number(material_id),
-          grams: Number(grams),
-        }));
-
-        if (latestHoldings.length === 0) {
-          responseData = prepareJSONResponse(
-            { total_investment_value: 0, materials: [] },
-            'No holdings found.',
-            statusCodes.OK,
-          );
-        } else {
-          const mergedFilter: any = { customer_id: userId };
-
-          if (start && end) {
-            mergedFilter.created_at = { [Op.between]: [start, end] };
-          } else if (start_date) {
-            mergedFilter.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
-          } else if (end_date) {
-            mergedFilter.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
-          }
-
-          const allPurchases = await this.digitalPurchaseModel.findAll({
-            where: {
-              ...mergedFilter,
-              transaction_type_id: 1,
-              purchase_status: 2,
-              payment_status: 2,
-            },
-            raw: true,
-          });
-
-          const allRedeems = await this.physicalRedeemModel.findAll({
-            where: {
-              ...mergedFilter,
-              transaction_type_id: 3,
-            },
-            raw: true,
-          });
-
-          const investMap: Record<number, { invested: number; grams: number }> = {};
-
-          for (const pur of allPurchases) {
-            const mId = pur.material_id;
-
-            if (!investMap[mId]) {
-              investMap[mId] = { invested: 0, grams: 0 };
-            }
-
-            investMap[mId].invested += Number(pur.amount || 0);
-            investMap[mId].grams += Number(pur.grams_purchased || 0);
-          }
-
-          for (const red of allRedeems) {
-            const mId = red.material_id;
-
-            if (!investMap[mId]) {
-              investMap[mId] = { invested: 0, grams: 0 };
-            }
-
-            investMap[mId].grams -= Number(red.grams_redeemed || 0);
-
-            const redeemValue = Number(red.grams_redeemed || 0) * Number(red.price_per_gram || 0);
-
-            investMap[mId].invested -= redeemValue;
-          }
-
-          const currentRates: Record<number, number> = {};
-          const materialIds = Object.values(predefinedMaterials).map((m) => m.id);
-
-          await Promise.all(
-            materialIds.map(async (mId) => {
-              const live = await this.getLiveMaterialPrice(mId);
-              currentRates[mId] = Number(live?.live_price?.price_per_gram || 0);
-            }),
-          );
-
-          const materialNames: Record<number, string> = Object.values(predefinedMaterials).reduce(
-            (acc, m) => {
-              acc[m.id] = m.name;
-              return acc;
-            },
-            {} as Record<number, string>,
-          );
-
-          let totalInvestmentValue = 0;
-          const materialsOutput: any[] = [];
-
-          for (const holding of latestHoldings) {
-            const materialId = holding.material_id;
-            const grams = Number(holding.grams);
-
-            const investedInfo = investMap[materialId] || { invested: 0, grams: 0 };
-            const totalInvested = investedInfo.invested;
-            const totalBuyGrams = investedInfo.grams;
-
-            const avgPrice = totalBuyGrams > 0 ? Number((totalInvested / totalBuyGrams).toFixed(2)) : 0;
-
-            const currentRate = currentRates[materialId];
-            const currentValue = Number((grams * currentRate).toFixed(2));
-
-            const profit = Number((currentValue - totalInvested).toFixed(2));
-            const profitPercent = totalInvested > 0 ? Number(((profit / totalInvested) * 100).toFixed(2)) : 0;
-
-            totalInvestmentValue += totalInvested;
-
-            materialsOutput.push({
-              material_id: materialId,
-              name: materialNames[materialId],
-              grams,
-              average_price: avgPrice,
-              current_rate: currentRate,
-              current_value: currentValue,
-              invested_amount: totalInvested,
-              profit,
-              profit_percent: profitPercent,
-            });
-          }
-
-          responseData = prepareJSONResponse(
-            {
-              customer_id: userId,
-              total_investment_value: totalInvestmentValue,
-              materials: materialsOutput,
-            },
-            'Success',
-            statusCodes.OK,
-          );
-        }
-      } catch (error) {
-        logger.error('getCustomerCurrentHoldings - Error', error);
-        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
-      }
+      logger.info(
+        `getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      );
+      return res.status(responseData.status).json(responseData);
     }
 
-    logger.info(`getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
-    return res.status(responseData.status).json(responseData);
+    try {
+      const pendingStatuses = [
+        predefinedFlowStatus.Requested.id,
+        predefinedFlowStatus.Admin_Approved.id,
+        predefinedFlowStatus.Vendor_Assigned.id,
+        predefinedFlowStatus.Rider_Assigned.id,
+        predefinedFlowStatus.Out_for_Delivery.id,
+      ];
+      const dateCheck = await this.validateDateRange(start_date, end_date);
+
+      if (!dateCheck.isValid) {
+        responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
+        logger.info(
+          `getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const { start, end } = dateCheck;
+      const holdingsWhere: any = { customer_id: userId };
+      const physicalRedeemWhere: any = {
+        customer_id: userId,
+        transaction_type_id: predefinedTransactionType.Redeem.id,
+        flow_status: predefinedFlowStatus.Delivered.id,
+      };
+      const pendingRedeemWhere: any = {
+        customer_id: userId,
+        transaction_type_id: predefinedTransactionType.Redeem.id,
+        flow_status: { [Op.in]: pendingStatuses },
+      };
+
+      if (start && end) {
+        holdingsWhere.created_at = { [Op.between]: [start, end] };
+        physicalRedeemWhere.created_at = { [Op.between]: [start, end] };
+        pendingRedeemWhere.created_at = { [Op.between]: [start, end] };
+      } else if (start_date) {
+        holdingsWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+        physicalRedeemWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+        pendingRedeemWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+      } else if (end_date) {
+        holdingsWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+        physicalRedeemWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+        pendingRedeemWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+      }
+
+      const allHoldings = await this.digitalHoldingModel.findAll({
+        where: holdingsWhere,
+        raw: true,
+      });
+      const allPhysicalRedeems = await this.physicalRedeemModel.findAll({
+        where: physicalRedeemWhere,
+        raw: true,
+      });
+      const allPendingRedeems = await this.physicalRedeemModel.findAll({
+        where: pendingRedeemWhere,
+        raw: true,
+      });
+
+      type HoldingRow = { material_id: number; running_total_grams: number; created_at: string | Date };
+      const latestHoldingsByMaterial: Record<number, { grams: number; created_at_ts: number }> = {};
+
+      for (const row of allHoldings as HoldingRow[]) {
+        const mId = Number(row.material_id);
+        const grams = Number(row.running_total_grams || 0);
+        const ts = new Date(row.created_at).getTime();
+
+        if (!Number.isFinite(ts)) {
+          continue;
+        }
+
+        if (
+          !Object.prototype.hasOwnProperty.call(latestHoldingsByMaterial, mId) ||
+          ts > latestHoldingsByMaterial[mId].created_at_ts
+        ) {
+          latestHoldingsByMaterial[mId] = { grams, created_at_ts: ts };
+        }
+      }
+
+      const latestHoldings = Object.entries(latestHoldingsByMaterial).map(([material_id, val]) => ({
+        material_id: Number(material_id),
+        grams: Number(val.grams),
+      }));
+
+      if (latestHoldings.length === 0) {
+        responseData = prepareJSONResponse(
+          { total_invested_amount: 0, total_current_value: 0, materials: [] },
+          'No holdings found.',
+          statusCodes.OK,
+        );
+        logger.info(
+          `getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+        );
+        return res.status(responseData.status).json(responseData);
+      }
+
+      const purchaseWhere: any = {
+        customer_id: userId,
+        transaction_type_id: predefinedTransactionType.Buy.id,
+      };
+
+      if (start && end) {
+        purchaseWhere.created_at = { [Op.between]: [start, end] };
+      } else if (start_date) {
+        purchaseWhere.created_at = { [Op.gte]: new Date(`${start_date}T00:00:00.000Z`) };
+      } else if (end_date) {
+        purchaseWhere.created_at = { [Op.lte]: new Date(`${end_date}T23:59:59.999Z`) };
+      }
+
+      const allPurchases = await this.digitalPurchaseModel.findAll({
+        where: purchaseWhere,
+        raw: true,
+      });
+
+      const investMap: Record<number, { invested: number; grams: number }> = {};
+      const redeemMap: Record<number, { grams: number; amount: number }> = {};
+      const pendingRedeemMap: Record<number, { grams: number; amount: number }> = {};
+      for (const pur of allPurchases) {
+        const mId = Number(pur.material_id);
+        if (!investMap[mId]) investMap[mId] = { invested: 0, grams: 0 };
+
+        investMap[mId].invested += Number(pur.amount || 0);
+        investMap[mId].grams += Number(pur.grams_purchased || 0);
+      }
+      for (const r of allPhysicalRedeems) {
+        const mId = Number(r.material_id);
+        const gramsRedeemed = Number(r.grams_redeemed || 0);
+        const amount = Number(gramsRedeemed * Number(r.price_per_gram || 0));
+
+        if (!redeemMap[mId]) redeemMap[mId] = { grams: 0, amount: 0 };
+
+        redeemMap[mId].grams += gramsRedeemed;
+        redeemMap[mId].amount += amount;
+      }
+      for (const r of allPendingRedeems) {
+        const mId = Number(r.material_id);
+        const gramsRedeemed = Number(r.grams_redeemed || 0);
+        const amount = Number(gramsRedeemed * Number(r.price_per_gram || 0));
+
+        if (!pendingRedeemMap[mId]) pendingRedeemMap[mId] = { grams: 0, amount: 0 };
+
+        pendingRedeemMap[mId].grams += gramsRedeemed;
+        pendingRedeemMap[mId].amount += amount;
+      }
+
+      const materialIds = latestHoldings.map((h) => h.material_id);
+      const currentRates: Record<number, number> = {};
+
+      await Promise.all(
+        materialIds.map(async (mId) => {
+          try {
+            const live = await this.getLiveMaterialPrice(mId);
+            currentRates[mId] = Number(live?.live_price?.price_per_gram || 0);
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          } catch (e) {
+            currentRates[mId] = 0;
+          }
+        }),
+      );
+
+      const materialNames: Record<number, string> = Object.values(predefinedMaterials).reduce(
+        (acc, m) => {
+          acc[m.id] = m.name;
+          return acc;
+        },
+        {} as Record<number, string>,
+      );
+
+      const round2 = (v: number) => Number(Number.isFinite(v) ? v.toFixed(2) : 0);
+
+      let totalInvestedAmount = 0;
+      let totalRedeemedAmount = 0;
+      let totalPendingRedeemedAmount = 0;
+      let totalCurrentValue = 0;
+      const materialsOutput: any[] = [];
+
+      for (const holding of latestHoldings) {
+        const materialId = holding.material_id;
+        const grams = Number(holding.grams || 0);
+
+        const investedInfo = investMap[materialId] || { invested: 0, grams: 0 };
+        const totalInvested = Number(investedInfo.invested || 0);
+        const totalBuyGrams = Number(investedInfo.grams || 0);
+
+        const avgPrice = totalBuyGrams > 0 ? round2(totalInvested / totalBuyGrams) : 0;
+
+        const currentRate = Number(currentRates[materialId] || 0);
+        const currentValue = round2(grams * currentRate);
+
+        totalInvestedAmount += totalInvested;
+        totalCurrentValue += currentValue;
+
+        const redeemedInfo = redeemMap[materialId] || { grams: 0, amount: 0 };
+        const physicalRedeemedGrams = Number(redeemedInfo.grams || 0);
+        const physicalRedeemedAmount = Number(redeemedInfo.amount || 0);
+        totalRedeemedAmount += physicalRedeemedAmount;
+
+        const pendingInfo = (typeof pendingRedeemMap !== 'undefined' && pendingRedeemMap[materialId]) || {
+          grams: 0,
+          amount: 0,
+        };
+        const pendingRedeemedGrams = Number(pendingInfo.grams || 0);
+        const pendingRedeemedAmount = Number(pendingInfo.amount || 0);
+
+        totalPendingRedeemedAmount += pendingRedeemedAmount;
+        const costBasisPerGram = avgPrice;
+        const costBasisRedeemed = round2(costBasisPerGram * physicalRedeemedGrams);
+        const costBasisRemaining = round2(costBasisPerGram * grams);
+
+        // realized / unrealized profits
+        const realizedProfit = round2(physicalRedeemedAmount - costBasisRedeemed);
+        const unrealizedProfit = round2(currentValue - costBasisRemaining);
+
+        // total profit (realized + unrealized)
+        const totalProfit = round2(realizedProfit + unrealizedProfit);
+
+        // percent based on total invested (defensive)
+        const profitPercent = totalInvested > 0 ? round2((totalProfit / totalInvested) * 100) : 0;
+
+        materialsOutput.push({
+          material_id: materialId,
+          name: materialNames[materialId] || null,
+          grams,
+          average_price: avgPrice,
+          current_rate: round2(currentRate),
+          current_value: currentValue,
+          invested_amount: round2(totalInvested),
+
+          realized_profit: realizedProfit,
+          unrealized_profit: unrealizedProfit,
+          total_profit: totalProfit,
+          profit_percent: profitPercent,
+
+          physical_redeemed_grams: round2(physicalRedeemedGrams),
+          physical_redeemed_amount: round2(physicalRedeemedAmount),
+          pending_redeemed_grams: round2(pendingRedeemedGrams),
+          pending_redeemed_amount: round2(pendingRedeemedAmount),
+        });
+      }
+
+      responseData = prepareJSONResponse(
+        {
+          customer_id: userId,
+          total_current_value: round2(totalCurrentValue),
+          total_invested_amount: round2(totalInvestedAmount),
+          total_redeemed_amount: round2(totalRedeemedAmount),
+          total_redeemed_grams: round2(Object.values(redeemMap).reduce((s, v) => s + v.grams, 0)),
+          total_pending_redeemed_amount: round2(totalPendingRedeemedAmount),
+          total_pending_redeemed_grams: round2(Object.values(pendingRedeemMap).reduce((s, v) => s + v.grams, 0)),
+          materials: materialsOutput,
+        },
+        'Success',
+        statusCodes.OK,
+      );
+      logger.info(
+        `getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      );
+      return res.status(responseData.status).json(responseData);
+    } catch (error) {
+      logger.error('getCustomerCurrentHoldings - Error', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      logger.info(
+        `getCustomerCurrentHoldings Req/Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      );
+      return res.status(responseData.status).json(responseData);
+    }
   }
 }

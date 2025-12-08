@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import {
+  predefinedAdminStatus,
   predefinedFlowStatus,
   predefinedRiderStatus,
   predefinedRoles,
+  predefinedTransactionType,
   predefinedVendorStatus,
   statusCodes,
 } from '../utils/constants';
@@ -57,6 +59,8 @@ export default class PhysicalRedeemController {
 
   // @ts-ignore
   private otpLogModel: OtpLogModel;
+
+  sequelize: any;
 
   constructor(
     // @ts-ignore
@@ -431,13 +435,17 @@ export default class PhysicalRedeemController {
             totalRequiredGrams += itemGrams;
           });
 
-          const holding = await this.digitalHoldingModel.sum('running_total_grams', {
-            where: { customer_id: userId, material_id },
+          const holding = await this.digitalHoldingModel.findOne({
+            where: {
+              customer_id: userId,
+              material_id,
+            },
+            order: [['id', 'DESC']],
           });
 
           logger.info(`createPhysicalRedeem - customer's current holdings details: ${JSON.stringify(holding)} }`);
 
-          const availableGrams = Number(holding || 0);
+          const availableGrams = Number(holding?.running_total_grams || 0);
 
           if (availableGrams < totalRequiredGrams) {
             responseData = prepareJSONResponse(
@@ -765,6 +773,8 @@ export default class PhysicalRedeemController {
     const { role_id } = req.user;
     let responseData: typeof prepareJSONResponse = {};
 
+    const transaction = await this.physicalRedeemModel.sequelize.transaction();
+
     try {
       if (role_id !== predefinedRoles.Admin.id) {
         responseData = prepareJSONResponse(
@@ -772,6 +782,7 @@ export default class PhysicalRedeemController {
           'Access denied. Only Admin can reject redemptions.',
           statusCodes.FORBIDDEN,
         );
+        await transaction.rollback();
         return res.status(responseData.status).json(responseData);
       }
 
@@ -779,17 +790,22 @@ export default class PhysicalRedeemController {
 
       if (!redeem_id) {
         responseData = prepareJSONResponse({}, 'redeem_id is required.', statusCodes.BAD_REQUEST);
+        await transaction.rollback();
         return res.status(responseData.status).json(responseData);
       }
 
-      const redeemRecord = await this.physicalRedeemModel.findOne({ where: { id: redeem_id } });
+      const redeemRecord = await this.physicalRedeemModel.findOne({
+        where: { id: redeem_id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
 
       if (!redeemRecord) {
         responseData = prepareJSONResponse({}, 'Redemption record not found.', statusCodes.NOT_FOUND);
+        await transaction.rollback();
         return res.status(responseData.status).json(responseData);
       }
 
-      // Check if already processed
       if (
         redeemRecord.admin_status === predefinedFlowStatus.Admin_Approved.id ||
         redeemRecord.admin_status === predefinedFlowStatus.Admin_Rejected.id
@@ -799,49 +815,55 @@ export default class PhysicalRedeemController {
           'Redemption request has already been processed.',
           statusCodes.BAD_REQUEST,
         );
+        await transaction.rollback();
         return res.status(responseData.status).json(responseData);
       }
 
-      // 1. Update Status
-      redeemRecord.admin_status = predefinedFlowStatus.Admin_Rejected.id;
+      redeemRecord.admin_status = predefinedAdminStatus.Rejected.id;
       redeemRecord.flow_status = predefinedFlowStatus.Admin_Rejected.id;
       redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id;
       redeemRecord.rider_status = predefinedRiderStatus.Rejected.id;
-      await redeemRecord.save();
 
-      // 2. Reverse Transaction (Refund Grams)
+      await redeemRecord.save({ transaction });
+
       const lastLedger = await this.digitalHoldingModel.findOne({
         where: {
           customer_id: redeemRecord.customer_id,
           material_id: redeemRecord.material_id,
-          redeem_id: redeemRecord.id,
         },
         order: [['id', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
       });
 
       const currentBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
       const refundGrams = Number(redeemRecord.grams_redeemed);
       const newBalance = Number((currentBalance + refundGrams).toFixed(6));
 
-      await this.digitalHoldingModel.create({
-        customer_id: redeemRecord.customer_id,
-        material_id: redeemRecord.material_id,
-        purchase_id: null,
-        redeem_id: redeemRecord.id,
-        transaction_type_id: 2, // Deposit (Refund)
-        grams: refundGrams,
-        running_total_grams: newBalance,
-      });
+      await this.digitalHoldingModel.create(
+        {
+          customer_id: redeemRecord.customer_id,
+          material_id: redeemRecord.material_id,
+          purchase_id: null,
+          redeem_id: redeemRecord.id,
+          transaction_type_id: predefinedTransactionType.Deposit.id,
+          grams: refundGrams,
+          running_total_grams: newBalance,
+        },
+        { transaction },
+      );
 
       logger.info(`rejectRedemption - Refunded ${refundGrams} grams to customer ${redeemRecord.customer_id}`);
-
+      await transaction.commit();
       responseData = prepareJSONResponse({}, 'Redemption rejected and grams refunded successfully.', statusCodes.OK);
+
+      return res.status(responseData.status).json(responseData);
     } catch (error) {
       logger.error('rejectRedemption - Error rejecting redemption.', error);
+      await transaction.rollback();
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      return res.status(responseData.status).json(responseData);
     }
-
-    return res.status(responseData.status).json(responseData);
   }
 
   // eslint-disable-next-line class-methods-use-this
