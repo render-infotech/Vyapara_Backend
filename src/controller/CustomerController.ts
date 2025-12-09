@@ -189,7 +189,7 @@ export default class CustomersController {
               {
                 model: this.customerAddressModel,
                 as: 'customerAddress',
-                attributes: { exclude: ['status', 'created_at', 'updated_at'] },
+                attributes: { exclude: ['created_at', 'updated_at'] },
               },
             ],
           },

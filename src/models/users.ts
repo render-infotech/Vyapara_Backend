@@ -5,7 +5,7 @@ import VendorDetails from './vendorDetails';
 import DigitalPurchase from './digitalPurchase';
 import DigitalHolding from './digitalHolding';
 import PhysicalRedeem from './physicalRedeem';
-import OtpLog from './otpLog';
+import PhysicalDeposit from './physicalDeposit';
 
 // Define the attributes for the User model
 interface UserAttributes {
@@ -98,6 +98,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    physicalDeposit: Association<PhysicalDeposit, InstanceType<typeof PhysicalDeposit>>;
   };
 
   /**
@@ -144,6 +147,13 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
       this.hasMany(models.OtpLog, {
         foreignKey: 'user_id',
         as: 'otpLogs',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalDeposit')) {
+      this.hasMany(models.PhysicalDeposit, {
+        foreignKey: 'customer_id',
+        as: 'physicalDeposit',
       });
     }
   }

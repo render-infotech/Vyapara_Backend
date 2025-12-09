@@ -4,6 +4,7 @@ import CustomerAddress from './customerAddress';
 import DigitalPurchase from './digitalPurchase';
 import DigitalHolding from './digitalHolding';
 import PhysicalRedeem from './physicalRedeem';
+import PhysicalDeposit from './physicalDeposit';
 
 // Define the attributes for the CustomerDetails model
 interface CustomerDetailsAttributes {
@@ -63,6 +64,9 @@ class CustomerDetails
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    physicalDeposit: Association<PhysicalDeposit, InstanceType<typeof PhysicalDeposit>>;
   };
 
   /**
@@ -107,6 +111,14 @@ class CustomerDetails
         foreignKey: 'customer_id',
         sourceKey: 'customer_id',
         as: 'physicalRedeem',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalDeposit')) {
+      this.hasMany(models.PhysicalDeposit, {
+        foreignKey: 'customer_id',
+        sourceKey: 'customer_id',
+        as: 'physicalDeposit',
       });
     }
   }

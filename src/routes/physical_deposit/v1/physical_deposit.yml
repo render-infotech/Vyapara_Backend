@@ -1,0 +1,31 @@
+physical_deposit:
+  handler: src/routes/physical_deposit/v1/index.physical_deposit
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/physical-deposit
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true
+    - http:
+        path: /v1/physical-deposit/{proxy+}
+        method: any
+        cors:
+          origin: '*'
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: true

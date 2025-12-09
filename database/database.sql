@@ -304,3 +304,76 @@ CREATE TABLE IF NOT EXISTS `rider_details` (
 
 -- Created new columns for physical redeem - by Afrid
 ALTER TABLE `physical_redeem` ADD COLUMN `signature` VARCHAR(255) DEFAULT NULL COMMENT 'URL of the delivery signature';
+
+
+-- Created new table for physical deposit - by Shubham
+CREATE TABLE IF NOT EXISTS `physical_deposit` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the deposit request',
+  `deposit_code` VARCHAR(50) UNIQUE COMMENT 'Unique deposit reference code (e.g., PD20251209-ABC123)',
+  `material_id` INT NOT NULL COMMENT 'Material type: 1 = Gold, 2 = Silver',
+  `customer_id` BIGINT NOT NULL COMMENT 'Customer ID who is giving the deposit to vendor',
+  `vendor_id` BIGINT NOT NULL COMMENT 'Vendor ID who is recording the deposit',
+  `vendor_check_otp` VARCHAR(10) NULL COMMENT 'OTP sent to customer for verifying account status by vendor',
+  `vendor_check_otp_verified_at` DATETIME NULL COMMENT 'Timestamp when vendor_check OTP was verified',
+  `vendor_check_status` INT NOT NULL DEFAULT 0 COMMENT '0 = Pending, 1 = OTP Verified, 2 = Failed',
+  `kyc_verified` INT NOT NULL DEFAULT 1 COMMENT '1 = KYC Verified, 0 = Not Verified',
+  `agreed_by_customer` INT NOT NULL DEFAULT 0 COMMENT '0 = Not Agreed Yet, 1 = Both Customer & Vendor Agreed',
+  `agreed_at` DATETIME NULL COMMENT 'Timestamp when customer and vendor reached agreement',
+  `summary_otp` VARCHAR(10) NULL COMMENT 'OTP sent to customer email for final deposit summary confirmation',
+  `summary_otp_verified_at` DATETIME NULL COMMENT 'Timestamp when summary OTP was verified by vendor',
+  `total_pure_grams` DECIMAL(15,6) NOT NULL DEFAULT 0 COMMENT 'Total pure gold/silver grams after converting each product’s purity',
+  `price_per_gram` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Live price per gram used for estimated valuation',
+  `estimated_value` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total estimated amount customer will receive (pure grams × price_per_gram)',
+  `admin_status` INT NOT NULL DEFAULT 0 COMMENT '0 = Pending, 1 = Approved, 2 = Rejected',
+  `admin_remarks` TEXT NULL COMMENT 'Admin remarks for approval/rejection',
+  `flow_status` INT NOT NULL DEFAULT 1 COMMENT 'Deposit flow status:
+      1 = Vendor Check Pending
+      2 = Vendor Check Approved
+      3 = Agreement Done (Both Agreed)
+      4 = Summary OTP Sent
+      5 = Summary OTP Verified
+      6 = Pending Admin Review
+      7 = Admin Approved
+      8 = Admin Rejected
+      9 = Completed (Holdings Updated)',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+  PRIMARY KEY (`id`),
+
+  -- FK: Customer (users table)
+  CONSTRAINT `fk_physical_deposit_customer`
+    FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE,
+
+  -- FK: Customer Details (customer_details table)
+  CONSTRAINT `fk_physical_deposit_customer_details`
+    FOREIGN KEY (`customer_id`) REFERENCES `customer_details`(`customer_id`)
+    ON DELETE CASCADE,
+
+  -- FK: Vendor (vendor_details table)
+  CONSTRAINT `fk_physical_deposit_vendor`
+    FOREIGN KEY (`vendor_id`) REFERENCES `vendor_details`(`vendor_id`)
+    ON DELETE RESTRICT
+);
+
+-- Created new table for physical deposit products - by Shubham
+CREATE TABLE IF NOT EXISTS `physical_deposit_products` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of each deposited product item',
+  `deposit_id` BIGINT NOT NULL COMMENT 'Reference to main deposits table (foreign key)',
+  `product_type` VARCHAR(100) NOT NULL COMMENT 'Type of product (e.g., Ring, Chain, Coin, Bar, Bracelet)',
+  `material_id` INT NOT NULL COMMENT 'Material type: 1 = Gold, 2 = Silver (matches material table)',
+  `purity` VARCHAR(20) NOT NULL COMMENT 'Purity of the item (e.g., 22K, 916, 999, 18K)',
+  `gross_weight` DECIMAL(15,6) NOT NULL COMMENT 'Total item weight including stones or impurities (in grams)',
+  `net_weight` DECIMAL(15,6) NOT NULL COMMENT 'Net metal weight after removing stones/wastage (in grams)',
+  `pure_metal_equivalent` DECIMAL(15,6) NOT NULL COMMENT 'Pure metal grams = net_weight × purity %',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp when product record was created',
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Timestamp when product record was last updated',
+
+  PRIMARY KEY (`id`),
+
+  -- Foreign key reference to physical_deposit table
+  CONSTRAINT `fk_physical_deposit_products_deposit`
+    FOREIGN KEY (`deposit_id`) REFERENCES `physical_deposit`(`id`)
+    ON DELETE CASCADE
+);
+
