@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
-import { statusCodes } from 'utils/constants.js';
 import { prepareJSONResponse } from '../utils/utils';
-
+import { statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import UsersModel from '../models/users';
 import PhysicalDepositModel from '../models/physicalDeposit';
