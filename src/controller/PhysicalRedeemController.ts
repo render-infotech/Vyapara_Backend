@@ -556,6 +556,7 @@ export default class PhysicalRedeemController {
       const offset = (pageNum - 1) * limitNum;
 
       let whereClause: any = {};
+      const { admin_status, vendor_status, rider_status, flow_status, start_date, end_date } = req.query;
 
       if (role_id === predefinedRoles.Admin.id) {
         // Admin sees all
@@ -574,6 +575,29 @@ export default class PhysicalRedeemController {
         // For now, let's return empty or forbidden. Let's return forbidden for safety.
         responseData = prepareJSONResponse({}, 'Access denied', statusCodes.FORBIDDEN);
         return res.status(responseData.status).json(responseData);
+      }
+
+      if (admin_status) whereClause.admin_status = admin_status;
+      if (vendor_status) whereClause.vendor_status = vendor_status;
+      if (rider_status) whereClause.rider_status = rider_status;
+      if (flow_status) whereClause.flow_status = flow_status;
+
+      if (start_date || end_date) {
+        const dateValidation = await this.validateDateRange(start_date as string, end_date as string);
+        if (!dateValidation.isValid) {
+          responseData = prepareJSONResponse({}, dateValidation.error, statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        const { start, end } = dateValidation;
+
+        if (start && end) {
+          whereClause.created_at = { [Op.between]: [start, end] };
+        } else if (start) {
+          whereClause.created_at = { [Op.gte]: start };
+        } else if (end) {
+          whereClause.created_at = { [Op.lte]: end };
+        }
       }
 
       // Helper to get name from constant object
@@ -622,7 +646,7 @@ export default class PhysicalRedeemController {
           admin_status_text: getAdminStatusName(item.admin_status),
           flow_status_text: getStatusName(item.flow_status, predefinedFlowStatus),
           vendor_status_text: getStatusName(item.vendor_status || 0, predefinedVendorStatus),
-          rider_status_text: getStatusName(item.rider_status || 0, predefinedVendorStatus),
+          rider_status_text: getStatusName(item.rider_status || 0, predefinedRiderStatus),
         };
       });
 
@@ -682,8 +706,8 @@ export default class PhysicalRedeemController {
       }
 
       redeemRecord.vendor_id = vendor_id;
-      redeemRecord.admin_status = predefinedFlowStatus.Admin_Approved.id; // Approved
       redeemRecord.flow_status = predefinedFlowStatus.Vendor_Assigned.id; // Vendor Assigned
+      redeemRecord.admin_status = predefinedAdminStatus.Approved.id; // Approved
       redeemRecord.vendor_status = predefinedVendorStatus.Pending.id; // Pending vendor response
       await redeemRecord.save();
 
