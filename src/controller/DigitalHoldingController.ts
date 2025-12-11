@@ -356,7 +356,7 @@ export default class DigitalHoldingController {
             {
               model: this.digitalPurchaseModel,
               as: 'digitalPurchase',
-              required: true,
+              required: false,
               where: purchaseWhere,
               attributes: {
                 exclude: [
@@ -368,6 +368,16 @@ export default class DigitalHoldingController {
                   'created_at',
                   'updated_at',
                 ],
+              },
+              order: [['created_at', 'DESC']],
+            },
+            {
+              model: this.physicalRedeemModel,
+              as: 'physicalRedeem',
+              required: false,
+              where: purchaseWhere,
+              attributes: {
+                exclude: ['customer_id', 'transaction_type_id', 'created_at', 'updated_at'],
               },
               order: [['created_at', 'DESC']],
             },
@@ -417,6 +427,20 @@ export default class DigitalHoldingController {
                 razorpay_payment_id: holding.digitalPurchase?.razorpay_payment_id || null,
                 razorpay_signature: holding.digitalPurchase?.razorpay_signature || null,
                 payment_status: holding.digitalPurchase?.payment_status || null,
+
+                // from PhysicalRedeem
+                redeem_code: holding.physicalRedeem?.redeem_code || null,
+                grams_redeemed: holding.physicalRedeem?.grams_redeemed || null,
+                grams_before_redeem: holding.physicalRedeem?.grams_before_redeem || null,
+                grams_after_redeem: holding.physicalRedeem?.grams_after_redeem || null,
+                address_id: holding.physicalRedeem?.address_id || null,
+                products: holding.physicalRedeem?.products || null,
+                admin_status: holding.physicalRedeem?.admin_status || null,
+                vendor_status: holding.physicalRedeem?.vendor_status || null,
+                rider_status: holding.physicalRedeem?.rider_status || null,
+                flow_status: holding.physicalRedeem?.flow_status || null,
+                remarks: holding.physicalRedeem?.remarks || null,
+                signature: holding.physicalRedeem?.signature || null,
               };
             }),
           );

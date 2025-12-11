@@ -90,6 +90,14 @@ class DigitalHoldings
         as: 'customerDetails',
       });
     }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalRedeem')) {
+      this.belongsTo(models.PhysicalRedeem, {
+        foreignKey: 'redeem_id',
+        targetKey: 'id',
+        as: 'physicalRedeem',
+      });
+    }
   }
 }
 

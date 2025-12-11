@@ -33,7 +33,7 @@ Users.associate({
 CustomerDetails.associate({ Users, CustomerAddress, DigitalPurchase, DigitalHolding });
 CustomerAddress.associate({ Users, CustomerDetails });
 DigitalPurchase.associate({ Users, DigitalHolding, CustomerDetails });
-DigitalHolding.associate({ Users, DigitalPurchase, CustomerDetails });
+DigitalHolding.associate({ Users, DigitalPurchase, CustomerDetails, PhysicalRedeem });
 
 const digitalHoldingController = new DigitalHoldingController(
   Users,
