@@ -8,7 +8,7 @@ import SqlError from '../errors/sqlError';
 import UsersModel from '../models/users';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
-import VendorDetailsModel from '../models/vendorDetails';
+import RiderDetailsModel from '../models/riderDetails';
 import { removeS3File, singleImageUpload } from '../utils/s3uploads';
 
 export default class UsersController {
@@ -24,6 +24,9 @@ export default class UsersController {
   // @ts-ignore
   private vendorDetailsModel: VendorDetailsModel;
 
+  // @ts-ignore
+  private riderDetailsModel: RiderDetailsModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -33,11 +36,14 @@ export default class UsersController {
     customerAddressModel: CustomerAddressModel,
     // @ts-ignore
     vendorDetailsModel: VendorDetailsModel,
+    // @ts-ignore
+    riderDetailsModel: RiderDetailsModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
     this.customerAddressModel = customerAddressModel;
     this.vendorDetailsModel = vendorDetailsModel;
+    this.riderDetailsModel = riderDetailsModel;
   }
 
   async emailExists(email) {
@@ -246,7 +252,7 @@ export default class UsersController {
 
       const include: any[] = [];
 
-      if (role_id === 10) {
+      if (role_id === predefinedRoles.User.id) {
         include.push({
           model: this.customerDetailsModel,
           as: 'customerDetails',
@@ -261,12 +267,18 @@ export default class UsersController {
             },
           ],
         });
-      } else if (role_id === 2) {
+      } else if (role_id === predefinedRoles.Vendor.id) {
         include.push({
           model: this.vendorDetailsModel,
           as: 'vendorDetails',
           required: false,
           where: vendorWhere,
+        });
+      } else if (role_id === predefinedRoles.Rider.id) {
+        include.push({
+          model: this.riderDetailsModel,
+          as: 'riderDetails',
+          required: false,
         });
       }
 
@@ -302,7 +314,7 @@ export default class UsersController {
               two_factor_enabled: recordExists?.two_factor_enabled,
             };
             switch (role_id) {
-              case 10:
+              case predefinedRoles.User.id:
                 const defaultAddress =
                   recordExists?.customerDetails?.customerAddress?.find((addr: any) => addr.is_default === 1) || null;
 
@@ -325,7 +337,7 @@ export default class UsersController {
                 };
                 break;
 
-              case 2:
+              case predefinedRoles.Vendor.id:
                 data = {
                   ...data,
                   identifier: recordExists?.vendorDetails?.vendor_code,
@@ -342,10 +354,27 @@ export default class UsersController {
                 };
                 break;
 
-              case 1:
+              case predefinedRoles.Rider.id:
                 data = {
                   ...data,
-                  identifier: 1,
+                  identifier: recordExists?.riderDetails?.id || null,
+                  associations: {
+                    vendor_id: null,
+                    customer_id: null,
+                    rider_id: recordExists?.riderDetails?.id || null,
+                  },
+                };
+                break;
+
+              case predefinedRoles.Admin.id:
+                data = {
+                  ...data,
+                  identifier: recordExists?.riderDetails?.rider_code || '',
+                  country: recordExists?.riderDetails?.country || '',
+                  state: recordExists?.riderDetails?.state || '',
+                  city: recordExists?.riderDetails?.city || '',
+                  address_line: recordExists?.riderDetails?.address_line || '',
+                  pincode: recordExists?.riderDetails?.pincode || '',
                   associations: {
                     vendor_id: null,
                     customer_id: null,

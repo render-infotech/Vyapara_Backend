@@ -2,6 +2,7 @@ import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import CustomerDetails from './customerDetails';
 import CustomerAddress from './customerAddress';
 import VendorDetails from './vendorDetails';
+import RiderDetails from './riderDetails';
 import DigitalPurchase from './digitalPurchase';
 import DigitalHolding from './digitalHolding';
 import PhysicalRedeem from './physicalRedeem';
@@ -91,6 +92,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     vendorDetails: Association<VendorDetails, InstanceType<typeof VendorDetails>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
+    riderDetails: Association<RiderDetails, InstanceType<typeof RiderDetails>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
     digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
@@ -120,6 +124,10 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('VendorDetails')) {
       this.hasOne(models.VendorDetails, { foreignKey: 'vendor_id', as: 'vendorDetails' });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('RiderDetails')) {
+      this.hasOne(models.RiderDetails, { foreignKey: 'rider_id', as: 'riderDetails' });
     }
     // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('DigitalPurchase')) {

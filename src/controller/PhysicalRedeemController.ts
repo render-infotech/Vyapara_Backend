@@ -241,7 +241,7 @@ export default class PhysicalRedeemController {
           user_id: userId,
           context: 'physical_redeem',
           created_at: {
-            [Op.gte]: new Date(Date.now() - 60 * 1000), // 60 seconds cooldown
+            [Op.gte]: new Date(Date.now() - 30 * 1000), // 60 seconds cooldown
           },
         },
       });
@@ -249,7 +249,7 @@ export default class PhysicalRedeemController {
       if (lastOtp) {
         responseData = prepareJSONResponse(
           {},
-          'Please wait before requesting another OTP.',
+          'Please wait 30 seconds before requesting another OTP.',
           statusCodes.TOO_MANY_REQUESTS,
         );
         return res.status(responseData.status).json(responseData);
