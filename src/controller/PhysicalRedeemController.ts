@@ -241,7 +241,7 @@ export default class PhysicalRedeemController {
           user_id: userId,
           context: 'physical_redeem',
           created_at: {
-            [Op.gte]: new Date(Date.now() - 30 * 1000), // 60 seconds cooldown
+            [Op.gte]: new Date(Date.now() - 30 * 1000),
           },
         },
       });
@@ -259,6 +259,10 @@ export default class PhysicalRedeemController {
       const user = await this.usersModel.findOne({ where: { id: userId } });
       if (!user || !user.phone) {
         responseData = prepareJSONResponse({}, 'User phone number not found.', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+      if (user?.user_verified === 0) {
+        responseData = prepareJSONResponse({}, 'User not KYC Verified', statusCodes.BAD_REQUEST);
         return res.status(responseData.status).json(responseData);
       }
 
