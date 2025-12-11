@@ -310,47 +310,31 @@ ALTER TABLE `physical_redeem` ADD COLUMN `signature` VARCHAR(255) DEFAULT NULL C
 CREATE TABLE IF NOT EXISTS `physical_deposit` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key ID of the deposit request',
   `deposit_code` VARCHAR(50) UNIQUE COMMENT 'Unique deposit reference code (e.g., PD20251209-ABC123)',
-  `material_id` INT NOT NULL COMMENT 'Material type: 1 = Gold, 2 = Silver',
   `customer_id` BIGINT NOT NULL COMMENT 'Customer ID who is giving the deposit to vendor',
   `vendor_id` BIGINT NOT NULL COMMENT 'Vendor ID who is recording the deposit',
-  `vendor_check_otp` VARCHAR(10) NULL COMMENT 'OTP sent to customer for verifying account status by vendor',
-  `vendor_check_otp_verified_at` DATETIME NULL COMMENT 'Timestamp when vendor_check OTP was verified',
-  `vendor_check_status` INT NOT NULL DEFAULT 0 COMMENT '0 = Pending, 1 = OTP Verified, 2 = Failed',
   `kyc_verified` INT NOT NULL DEFAULT 1 COMMENT '1 = KYC Verified, 0 = Not Verified',
-  `agreed_by_customer` INT NOT NULL DEFAULT 0 COMMENT '0 = Not Agreed Yet, 1 = Both Customer & Vendor Agreed',
+  `vendor_otp_verify` INT DEFAULT 0 COMMENT 'OTP verification for customer, 0 = Pending, 1 = OTP Verified, 2 = Failed',
+  `agreed_by_customer` INT NOT NULL DEFAULT 0 COMMENT '0 = Not Agreed, 1 = Agreed',
   `agreed_at` DATETIME NULL COMMENT 'Timestamp when customer and vendor reached agreement',
-  `summary_otp` VARCHAR(10) NULL COMMENT 'OTP sent to customer email for final deposit summary confirmation',
-  `summary_otp_verified_at` DATETIME NULL COMMENT 'Timestamp when summary OTP was verified by vendor',
-  `total_pure_grams` DECIMAL(15,6) NOT NULL DEFAULT 0 COMMENT 'Total pure gold/silver grams after converting each product’s purity',
-  `price_per_gram` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Live price per gram used for estimated valuation',
-  `estimated_value` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Total estimated amount customer will receive (pure grams × price_per_gram)',
-  `admin_status` INT NOT NULL DEFAULT 0 COMMENT '0 = Pending, 1 = Approved, 2 = Rejected',
-  `admin_remarks` TEXT NULL COMMENT 'Admin remarks for approval/rejection',
-  `flow_status` INT NOT NULL DEFAULT 1 COMMENT 'Deposit flow status:
-      1 = Vendor Check Pending
-      2 = Vendor Check Approved
-      3 = Agreement Done (Both Agreed)
-      4 = Summary OTP Sent
-      5 = Summary OTP Verified
-      6 = Pending Admin Review
-      7 = Admin Approved
-      8 = Admin Rejected
-      9 = Completed (Holdings Updated)',
+  `final_summary_otp_verify` INT DEFAULT 0 COMMENT 'OTP verification for summary, 0 = Pending, 1 = OTP Verified, 2 = Failed',
+  `total_pure_grams` DECIMAL(15,6) NOT NULL DEFAULT 0 COMMENT 'Total pure grams after purity conversion',
+  `price_per_gram` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Live price per gram at time of deposit',
+  `estimated_value` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Estimated amount customer will receive',
+  `vendor_remarks` TEXT NULL COMMENT 'Vendor remarks (optional)',
+  `flow_status` INT NOT NULL DEFAULT 1 COMMENT     'Deposit Flow Status: 1=Vendor Verification Pending, 2=Vendor OTP Verified, 3=Agreement Completed, 4=Final Summary OTP Sent, 5=Final Summary OTP Verified, 10=flow Completed',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation timestamp',
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
+
   PRIMARY KEY (`id`),
 
-  -- FK: Customer (users table)
   CONSTRAINT `fk_physical_deposit_customer`
     FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`)
     ON DELETE CASCADE,
 
-  -- FK: Customer Details (customer_details table)
   CONSTRAINT `fk_physical_deposit_customer_details`
     FOREIGN KEY (`customer_id`) REFERENCES `customer_details`(`customer_id`)
     ON DELETE CASCADE,
 
-  -- FK: Vendor (vendor_details table)
   CONSTRAINT `fk_physical_deposit_vendor`
     FOREIGN KEY (`vendor_id`) REFERENCES `vendor_details`(`vendor_id`)
     ON DELETE RESTRICT
@@ -376,4 +360,9 @@ CREATE TABLE IF NOT EXISTS `physical_deposit_products` (
     FOREIGN KEY (`deposit_id`) REFERENCES `physical_deposit`(`id`)
     ON DELETE CASCADE
 );
+
+
+-- Alter otp logs table - by Shubham
+ALTER TABLE `otp_logs`
+ADD COLUMN `ref_id` BIGINT DEFAULT NULL COMMENT 'Reference ID for linking OTP to a flow' AFTER `context`;
 

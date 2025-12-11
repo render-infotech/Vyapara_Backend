@@ -1,9 +1,10 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
-import User from './users';
+import Users from './users';
 
 interface OtpLogAttributes {
   id: number;
   user_id: number;
+  ref_id: number;
   otp_hash: string;
   expires_at: Date;
   attempts: number;
@@ -19,6 +20,8 @@ class OtpLog extends Model<OtpLogAttributes, OtpLogCreationAttributes> implement
 
   public user_id!: number;
 
+  public ref_id!: number;
+
   public otp_hash!: string;
 
   public expires_at!: Date;
@@ -31,7 +34,23 @@ class OtpLog extends Model<OtpLogAttributes, OtpLogCreationAttributes> implement
 
   public created_at!: Date;
 
+  /**
+   * The type for the association between models
+   */
+  public static associations: {
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    user: Association<Users, InstanceType<typeof Users>>;
+  };
+
+  /**
+   * A method to associate with other models
+   * @static
+   * @param {any} models - The models to associate with
+   */
+
   public static associate(models: any) {
+    // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('User')) {
       this.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
     }
@@ -51,6 +70,11 @@ const OtpLogModel = (sequelize: Sequelize): typeof OtpLog => {
         type: DataTypes.BIGINT,
         allowNull: false,
         comment: 'User ID',
+      },
+      ref_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: 'Reference ID for linking OTP to a flow',
       },
       otp_hash: {
         type: DataTypes.STRING(255),

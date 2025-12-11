@@ -8,6 +8,8 @@ import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
 import MaterialRateModel from '../../../models/materialRate';
 import VendorDetailsModel from '../../../models/vendorDetails';
+import CustomerAddressModel from '../../../models/customerAddress';
+import OtpLogModel from '../../../models/otpLog';
 
 import ControllerRoutes from './physical_deposit';
 
@@ -17,16 +19,22 @@ const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
+const CustomerAddress = CustomerAddressModel(sequelize);
+const OtpLog = OtpLogModel(sequelize);
 
 Users.associate({
   CustomerDetails,
   VendorDetails,
   PhysicalDeposit,
+  CustomerAddress,
+  OtpLog,
 });
-CustomerDetails.associate({ Users, PhysicalDeposit });
+CustomerDetails.associate({ Users, PhysicalDeposit, CustomerAddress });
 VendorDetails.associate({ Users, PhysicalDeposit });
 PhysicalDeposit.associate({ PhysicalDepositProducts, Users, CustomerDetails, VendorDetails });
 PhysicalDepositProducts.associate({ PhysicalDeposit });
+CustomerAddress.associate({ Users, CustomerDetails });
+OtpLog.associate({ Users });
 
 const physicalDepositController = new PhysicalDepositController(
   PhysicalDeposit,
@@ -35,6 +43,8 @@ const physicalDepositController = new PhysicalDepositController(
   CustomerDetails,
   VendorDetails,
   MaterialRate,
+  CustomerAddress,
+  OtpLog,
 );
 
 const physicalDepositControllerRoutes = ControllerRoutes(physicalDepositController);

@@ -463,6 +463,11 @@ export default class DigitalPurchaseController {
         return res.status(responseData.status).json(responseData);
       }
 
+      if (recordExists?.user_verified === 0) {
+        responseData = prepareJSONResponse({}, 'User not KYC Verified', statusCodes.BAD_REQUEST);
+        return res.status(responseData.status).json(responseData);
+      }
+
       const previewTime = new Date(preview_generated_at);
       const diffMinutes = (Date.now() - previewTime.getTime()) / 60000;
       if (diffMinutes > 5) {

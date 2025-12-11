@@ -9,23 +9,19 @@ import PhysicalDepositProducts from './physicalDepositProducts';
 interface PhysicalDepositAttributes {
   id: number;
   deposit_code: string;
-  material_id: number; // 1=gold,2=silver
   customer_id: number;
   vendor_id: number;
-  vendor_check_otp: string | null;
-  vendor_check_otp_verified_at: Date | null;
-  vendor_check_status: number; // 0 = pending, 1 = verified, 2 = failed
   kyc_verified: number; // 0 = not verified, 1 = verified
+  vendor_otp_verify: number; // 0 = pending, 1 = verified, 2 = failed
   agreed_by_customer: number; // 0=No, 1=Yes
   agreed_at: Date | null;
-  summary_otp: string | null;
-  summary_otp_verified_at: Date | null;
+  final_summary_otp_verify: number; // 0 = pending, 1 = verified, 2 = failed
   total_pure_grams: number;
   price_per_gram: number;
   estimated_value: number;
-  admin_status: number; // 0=pending,1=approved,2=rejected
-  admin_remarks: string | null;
-  flow_status: number; //  1 = Vendor Customer Check Started, 2 = Customer Verified (OTP Step 1 done), //  3 = Product Listing Completed, 4 = Summary OTP Sent, 5 = Summary OTP Verified by Customer, 6 = Admin Approved, 7 = Admin Rejected, 8 = Completed & Holdings Updated,
+  vendor_remarks: string | null;
+  flow_status: number; //  Deposit Flow Status: 1=Vendor Verification Pending, 2=Vendor OTP Verified, 3=Agreement Completed, 4=Final Summary OTP Sent, 5=Final Summary OTP Verified, 10=flow Completed,
+
   created_at: Date;
   updated_at: Date;
 }
@@ -42,27 +38,19 @@ class PhysicalDeposit
 
   public deposit_code!: string;
 
-  public material_id!: number;
-
   public customer_id!: number;
 
   public vendor_id!: number;
 
-  public vendor_check_otp!: string | null;
-
-  public vendor_check_otp_verified_at!: Date | null;
-
-  public vendor_check_status!: number;
-
   public kyc_verified!: number;
+
+  public vendor_otp_verify!: number;
 
   public agreed_by_customer!: number;
 
   public agreed_at!: Date | null;
 
-  public summary_otp!: string | null;
-
-  public summary_otp_verified_at!: Date | null;
+  public final_summary_otp_verify!: number;
 
   public total_pure_grams!: number;
 
@@ -70,9 +58,7 @@ class PhysicalDeposit
 
   public estimated_value!: number;
 
-  public admin_status!: number;
-
-  public admin_remarks!: string | null;
+  public vendor_remarks!: string | null;
 
   public flow_status!: number;
 
@@ -153,11 +139,6 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
         unique: true,
         comment: 'Unique deposit reference code (e.g., DP20251209-ABC123)',
       },
-      material_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        comment: 'Material type: 1 = Gold, 2 = Silver',
-      },
       customer_id: {
         type: DataTypes.BIGINT,
         allowNull: false,
@@ -168,25 +149,15 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
         allowNull: false,
         comment: 'Vendor ID who is recording the deposit',
       },
-      vendor_check_otp: {
-        type: DataTypes.STRING(10),
-        allowNull: true,
-        comment: 'OTP sent to customer for verifying account status by vendor',
-      },
-      vendor_check_otp_verified_at: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        comment: 'Timestamp when vendor_check OTP was verified',
-      },
-      vendor_check_status: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-        comment: '0 = Pending, 1 = OTP Verified, 2 = Failed',
-      },
       kyc_verified: {
         type: DataTypes.INTEGER,
         defaultValue: 1,
         comment: '1 = KYC Verified, 0 = Not Verified',
+      },
+      vendor_otp_verify: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'OTP verification for customer, 0 = Pending, 1 = OTP Verified, 2 = Failed',
       },
       agreed_by_customer: {
         type: DataTypes.INTEGER,
@@ -198,15 +169,10 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
         allowNull: true,
         comment: 'Timestamp when customer and vendor reached agreement',
       },
-      summary_otp: {
-        type: DataTypes.STRING(10),
-        allowNull: true,
-        comment: 'OTP sent to customer email for final deposit summary confirmation',
-      },
-      summary_otp_verified_at: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        comment: 'Timestamp when summary OTP was verified by vendor',
+      final_summary_otp_verify: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'OTP verification for summary, 0 = Pending, 1 = OTP Verified, 2 = Failed',
       },
       total_pure_grams: {
         type: DataTypes.DECIMAL(15, 6),
@@ -223,30 +189,17 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
         defaultValue: 0,
         comment: 'Total estimated amount customer will receive (pure grams × price_per_gram)',
       },
-      admin_status: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-        comment: '0 = Pending, 1 = Approved, 2 = Rejected',
-      },
-      admin_remarks: {
+      vendor_remarks: {
         type: DataTypes.TEXT,
         allowNull: true,
-        comment: 'Admin remarks for approval/rejection',
+        comment: 'Vendor remarks',
       },
       flow_status: {
         type: DataTypes.INTEGER,
         defaultValue: 1,
-        comment: `Deposit flow status:
-      1 = Vendor Check Pending
-      2 = Vendor Check Approved
-      3 = Agreement Done (Both Agreed)
-      4 = Summary OTP Sent
-      5 = Summary OTP Verified
-      6 = Pending Admin Review
-      7 = Admin Approved
-      8 = Admin Rejected
-      9 = Completed (Holdings Updated)
-    `,
+        comment:
+          // eslint-disable-next-line max-len
+          'Deposit Flow Status: 1=Vendor Verification Pending, 2=Vendor OTP Verified, 3=Agreement Completed, 4=Final Summary OTP Sent, 5=Final Summary OTP Verified, 10=flow Completed',
       },
       created_at: {
         type: DataTypes.DATE,
