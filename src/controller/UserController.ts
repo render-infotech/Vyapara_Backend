@@ -87,7 +87,7 @@ export default class UsersController {
     const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
-      const validateBody = ['first_name', 'email', 'password', 'confirm_password', 'is_agreed'];
+      const validateBody = ['first_name', 'email', 'password', 'confirm_password', 'phone', 'is_agreed'];
       const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
@@ -116,6 +116,9 @@ export default class UsersController {
               password: requestBody.password,
               dob: requestBody.dob || null,
               gender: requestBody.gender || 1,
+              phone_country_code: requestBody.phone_country_code || 1,
+              phone_code: requestBody.phone_code || 1,
+              phone: requestBody.phone || 1,
             });
 
             const data = {
@@ -312,6 +315,8 @@ export default class UsersController {
               dob: recordExists?.dob || '',
               gender: recordExists?.gender,
               two_factor_enabled: recordExists?.two_factor_enabled,
+              user_verified: recordExists?.user_verified,
+              created_at: recordExists?.created_at,
             };
             switch (role_id) {
               case predefinedRoles.User.id:
