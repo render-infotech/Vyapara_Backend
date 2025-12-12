@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import {
   predefinedFlowStatus,
   predefinedMaterials,
+  predefinedPurchaseStatus,
   predefinedTaxType,
+  predefinedTransactionStatus,
   predefinedTransactionType,
   statusCodes,
 } from '../utils/constants';
@@ -296,7 +298,93 @@ export default class DigitalHoldingController {
     return result;
   }
 
-  // eslint-disable-next-line class-methods-use-this
+  async getTransactionStatus(transaction_type_id: number, holding: any) {
+    const { Buy, Deposit, Redeem, RedeemRefund } = predefinedTransactionType;
+
+    const { Completed, Pending } = predefinedPurchaseStatus;
+    const { Delivered, Admin_Rejected } = predefinedFlowStatus;
+
+    const handlers: Record<number, () => string | null> = {
+      [Buy.id]: () => (holding.digitalPurchase?.purchase_status === Completed.id ? Completed.name : Pending.name),
+
+      [Deposit.id]: () => null,
+
+      [Redeem.id]: () =>
+        holding.physicalRedeem?.flow_status === Delivered
+          ? predefinedTransactionStatus.Completed.name
+          : predefinedTransactionStatus.Pending.name,
+
+      [RedeemRefund.id]: () =>
+        holding.physicalRedeem?.flow_status === Admin_Rejected
+          ? predefinedTransactionStatus.Refunded.name
+          : predefinedTransactionStatus.Pending.name,
+    };
+
+    return handlers[transaction_type_id]?.() ?? 'Unknown';
+  }
+
+  async getTransactionCode(transaction_type_id: number, holding: any) {
+    const { Buy, Deposit, Redeem, RedeemRefund } = predefinedTransactionType;
+    const handlers: Record<number, () => string | null> = {
+      [Buy.id]: () => holding.digitalPurchase?.purchase_code,
+
+      [Deposit.id]: () => null,
+
+      [Redeem.id]: () => holding.physicalRedeem?.redeem_code,
+
+      [RedeemRefund.id]: () => holding.physicalRedeem?.redeem_code,
+    };
+
+    return handlers[transaction_type_id]?.() ?? 'Unknown';
+  }
+
+  getTransactionDetails(transaction_type_id: number, holding: any) {
+    const { Buy, Redeem, RedeemRefund } = predefinedTransactionType;
+
+    if (transaction_type_id === Buy.id) {
+      const dp = holding.digitalPurchase;
+      return {
+        purchase_code: dp?.purchase_code ?? null,
+        amount: dp?.amount ?? null,
+        price_per_gram: dp?.price_per_gram ?? null,
+        grams_purchased: dp?.grams_purchased ?? null,
+        tax_rate_material: dp?.tax_rate_material ?? null,
+        tax_amount_material: dp?.tax_amount_material ?? null,
+        tax_rate_service: dp?.tax_rate_service ?? null,
+        tax_amount_service: dp?.tax_amount_service ?? null,
+        total_tax_amount: dp?.total_tax_amount ?? null,
+        service_fee_rate: dp?.service_fee_rate ?? null,
+        service_fee: dp?.service_fee ?? null,
+        total_amount: dp?.total_amount ?? null,
+        purchase_status: dp?.purchase_status ?? null,
+        razorpay_order_id: dp?.razorpay_order_id ?? null,
+        razorpay_payment_id: dp?.razorpay_payment_id ?? null,
+        razorpay_signature: dp?.razorpay_signature ?? null,
+        payment_status: dp?.payment_status ?? null,
+      };
+    }
+
+    if (transaction_type_id === Redeem.id || transaction_type_id === RedeemRefund.id) {
+      const pr = holding.physicalRedeem;
+      return {
+        redeem_code: pr?.redeem_code ?? null,
+        grams_redeemed: pr?.grams_redeemed ?? null,
+        grams_before_redeem: pr?.grams_before_redeem ?? null,
+        grams_after_redeem: pr?.grams_after_redeem ?? null,
+        address_id: pr?.address_id ?? null,
+        products: pr?.products ?? null,
+        admin_status: pr?.admin_status ?? null,
+        vendor_status: pr?.vendor_status ?? null,
+        rider_status: pr?.rider_status ?? null,
+        flow_status: pr?.flow_status ?? null,
+        remarks: pr?.remarks ?? null,
+        signature: pr?.signature ?? null,
+      };
+    }
+
+    return {}; // Deposit or unknown
+  }
+
   async getCustomerHoldings(req: Request, res: Response) {
     const requestBody = req.body;
     const { customer_id, start_date, end_date, material_id } = req.body;
@@ -402,45 +490,11 @@ export default class DigitalHoldingController {
                 transaction_type_id: holding.transaction_type_id,
                 grams: holding.grams,
                 running_total_grams: holding.running_total_grams,
-
-                // convert created_at to IST
+                status: await this.getTransactionStatus(holding.transaction_type_id, holding),
+                transaction_code: await this.getTransactionCode(holding.transaction_type_id, holding),
+                customer_code: holding.customerDetails?.customer_code ?? null,
                 ist: await this.convertToIST(holding.created_at),
-
-                // from CustomerDetails
-                customer_code: holding.customerDetails?.customer_code || null,
-
-                // from DigitalPurchase
-                purchase_code: holding.digitalPurchase?.purchase_code || null,
-                amount: holding.digitalPurchase?.amount || null,
-                price_per_gram: holding.digitalPurchase?.price_per_gram || null,
-                grams_purchased: holding.digitalPurchase?.grams_purchased || null,
-                tax_rate_material: holding.digitalPurchase?.tax_rate_material || null,
-                tax_amount_material: holding.digitalPurchase?.tax_amount_material || null,
-                tax_rate_service: holding.digitalPurchase?.tax_rate_service || null,
-                tax_amount_service: holding.digitalPurchase?.tax_amount_service || null,
-                total_tax_amount: holding.digitalPurchase?.total_tax_amount || null,
-                service_fee_rate: holding.digitalPurchase?.service_fee_rate || null,
-                service_fee: holding.digitalPurchase?.service_fee || null,
-                total_amount: holding.digitalPurchase?.total_amount || null,
-                purchase_status: holding.digitalPurchase?.purchase_status || null,
-                razorpay_order_id: holding.digitalPurchase?.razorpay_order_id || null,
-                razorpay_payment_id: holding.digitalPurchase?.razorpay_payment_id || null,
-                razorpay_signature: holding.digitalPurchase?.razorpay_signature || null,
-                payment_status: holding.digitalPurchase?.payment_status || null,
-
-                // from PhysicalRedeem
-                redeem_code: holding.physicalRedeem?.redeem_code || null,
-                grams_redeemed: holding.physicalRedeem?.grams_redeemed || null,
-                grams_before_redeem: holding.physicalRedeem?.grams_before_redeem || null,
-                grams_after_redeem: holding.physicalRedeem?.grams_after_redeem || null,
-                address_id: holding.physicalRedeem?.address_id || null,
-                products: holding.physicalRedeem?.products || null,
-                admin_status: holding.physicalRedeem?.admin_status || null,
-                vendor_status: holding.physicalRedeem?.vendor_status || null,
-                rider_status: holding.physicalRedeem?.rider_status || null,
-                flow_status: holding.physicalRedeem?.flow_status || null,
-                remarks: holding.physicalRedeem?.remarks || null,
-                signature: holding.physicalRedeem?.signature || null,
+                transaction_details: this.getTransactionDetails(holding.transaction_type_id, holding),
               };
             }),
           );

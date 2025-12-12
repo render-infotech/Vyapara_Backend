@@ -488,7 +488,7 @@ export default class PhysicalRedeemController {
           } else {
             const redeemData = {
               customer_id: userId,
-              transaction_type_id: 3,
+              transaction_type_id: predefinedTransactionType.Redeem.id,
               material_id,
               price_per_gram,
               grams_before_redeem: availableGrams,
@@ -874,7 +874,7 @@ export default class PhysicalRedeemController {
           material_id: redeemRecord.material_id,
           purchase_id: null,
           redeem_id: redeemRecord.id,
-          transaction_type_id: predefinedTransactionType.Deposit.id,
+          transaction_type_id: predefinedTransactionType.RedeemRefund.id,
           grams: refundGrams,
           running_total_grams: newBalance,
         },

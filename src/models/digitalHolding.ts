@@ -10,7 +10,7 @@ interface DigitalHoldingsAttributes {
   material_id: number; // 1 = Gold, 2 = Silver
   purchase_id?: number | null;
   redeem_id?: number | null;
-  transaction_type_id: number; // 1 = Buy, 2 = Deposit, 3 = Redeem
+  transaction_type_id: number; // 1 = Buy, 2 = Deposit, 3 = Redeem, 4 = Redeem Refund
   grams: number; // + buy, - redeem
   running_total_grams: number; // balance after this entry
   created_at: Date;

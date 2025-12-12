@@ -98,6 +98,11 @@ export const predefinedTransactionType = {
     name: 'Redeem',
     can_modify: 0,
   },
+  RedeemRefund: {
+    id: 4,
+    name: 'Redeem Refund',
+    can_modify: 0,
+  },
 };
 
 export const predefinedTransactionStatus = {
@@ -273,6 +278,34 @@ export const predefinedRiderStatus = {
   Rejected: {
     id: 2,
     name: 'Rejected',
+    can_modify: 0,
+  },
+};
+
+export const predefinedPurchaseStatus = {
+  Pending: {
+    id: 1,
+    name: 'Pending',
+    can_modify: 0,
+  },
+  Completed: {
+    id: 2,
+    name: 'Completed',
+    can_modify: 0,
+  },
+  Failed: {
+    id: 3,
+    name: 'Failed',
+    can_modify: 0,
+  },
+  Cancelled: {
+    id: 4,
+    name: 'Cancelled',
+    can_modify: 0,
+  },
+  Refunded: {
+    id: 5,
+    name: 'Refunded',
     can_modify: 0,
   },
 };
