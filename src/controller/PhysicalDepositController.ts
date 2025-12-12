@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prepareJSONResponse } from '../utils/utils';
-import { statusCodes } from '../utils/constants';
+import { predefinedMaterials, statusCodes, predefinedTransactionType } from '../utils/constants';
 import logger from '../utils/logger.js';
 import UsersModel from '../models/users';
 import PhysicalDepositModel from '../models/physicalDeposit';
@@ -10,8 +10,11 @@ import VendorDetailsModel from '../models/vendorDetails';
 import MaterialRateModel from '../models/materialRate';
 import CustomerAddressModel from '../models/customerAddress';
 import OtpLogModel from '../models/otpLog';
+import DigitalHoldingModel from '../models/digitalHolding';
 import { sendSms, hashOtp } from '../utils/sms';
 import { Op } from 'sequelize';
+import { physicalDepositSummary } from '../utils/emails/physical_deposit_summary.js';
+// import { sendEmail } from '../utils/mail';
 
 export default class PhysicalDepositController {
   // @ts-ignore
@@ -38,7 +41,8 @@ export default class PhysicalDepositController {
   // @ts-ignore
   private otpLogModel: OtpLogModel;
 
-  sequelize: any;
+  // @ts-ignore
+  private digitalHoldingModel: DigitalHoldingModel;
 
   constructor(
     // @ts-ignore
@@ -57,6 +61,8 @@ export default class PhysicalDepositController {
     customerAddressModel: CustomerAddressModel,
     // @ts-ignore
     otpLogModel: OtpLogModel,
+    // @ts-ignore
+    digitalHoldingModel: DigitalHoldingModel,
   ) {
     this.physicalDepositModel = physicalDepositModel;
     this.physicalDepositProductsModel = physicalDepositProductsModel;
@@ -66,6 +72,7 @@ export default class PhysicalDepositController {
     this.materialRateModel = materialRateModel;
     this.customerAddressModel = customerAddressModel;
     this.otpLogModel = otpLogModel;
+    this.digitalHoldingModel = digitalHoldingModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -283,7 +290,7 @@ export default class PhysicalDepositController {
             );
 
             logger.info(
-              `checkUserKYCVerifiction - SMS sent for customer to start deposit: ${JSON.stringify(smsSent)}}`,
+              `checkUserKYCVerifiction - SMS sent to customer's phone to start deposit: ${JSON.stringify(smsSent)}}`,
             );
             responseData = prepareJSONResponse(
               {
@@ -350,76 +357,84 @@ export default class PhysicalDepositController {
         logger.info(`startPhysicalDeposit - fetched user details: ${JSON.stringify(recordExists)}}`);
         if (!recordExists) {
           responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
-        } else if (recordExists?.user_verified === 0) {
-          responseData = prepareJSONResponse({}, 'Customer KYC is not completed.', statusCodes.BAD_REQUEST);
         } else {
-          const otpWhere: any = {
-            user_id: requestBody?.customer_id,
-            is_used: 0,
-            context: 'physical_deposit_step-1',
-            ref_id: requestBody?.deposit_id,
-            expires_at: {
-              [Op.gte]: new Date(),
-            },
+          const depositWhere: any = {
+            id: requestBody?.deposit_id,
+            kyc_verified: 1,
           };
-          const otpRecord = await this.otpLogModel.findOne({
-            where: otpWhere,
+          const depositRecord = await this.physicalDepositModel.findOne({
+            where: depositWhere,
           });
-          if (!otpRecord) {
-            responseData = prepareJSONResponse({}, 'Invalid or expired OTP.', statusCodes.BAD_REQUEST);
-          } else if (otpRecord.attempts >= 5) {
-            responseData = prepareJSONResponse(
-              {},
-              'Too many failed attempts. OTP is locked. Try again after 5 minutes.',
-              statusCodes.BAD_REQUEST,
-            );
+          logger.info(`startPhysicalDeposit - fetched deposit details: ${JSON.stringify(depositRecord)}}`);
+          if (!depositRecord) {
+            responseData = prepareJSONResponse({}, 'Deposit details not found', statusCodes.NOT_FOUND);
           } else {
-            const hashedInputOtp = hashOtp(requestBody?.otp.toString());
-            if (otpRecord.otp_hash !== hashedInputOtp) {
-              otpRecord.attempts += 1;
-              await otpRecord.save();
-              responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
-            }
-            otpRecord.is_used = true;
-            await otpRecord.save();
-            const depositWhere: any = {
-              id: requestBody?.deposit_id,
-              kyc_verified: 1,
+            const otpWhere: any = {
+              user_id: requestBody?.customer_id,
+              is_used: 0,
+              context: 'physical_deposit_step-1',
+              ref_id: requestBody?.deposit_id,
+              expires_at: {
+                [Op.gte]: new Date(),
+              },
             };
-            const depositRecord = await this.physicalDepositModel.findOne({
-              where: depositWhere,
+            const otpRecord = await this.otpLogModel.findOne({
+              where: otpWhere,
+              order: [['created_at', 'DESC']],
             });
-            if (depositRecord) {
+            if (!otpRecord) {
+              responseData = prepareJSONResponse(
+                {},
+                'No OTP data found for customer verification.',
+                statusCodes.BAD_REQUEST,
+              );
+            } else if (otpRecord.attempts >= 5) {
+              responseData = prepareJSONResponse(
+                {},
+                'Too many failed attempts, start new deposit flow.',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              const hashedInputOtp = hashOtp(requestBody?.otp.toString());
+              if (otpRecord.otp_hash !== hashedInputOtp) {
+                otpRecord.attempts += 1;
+                await otpRecord.save();
+                responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
+              }
+              otpRecord.is_used = true;
+              await otpRecord.save();
+
               await depositRecord.update({
                 flow_status: 2,
                 vendor_otp_verify: 1,
               });
-            }
-            logger.info(
-              `startPhysicalDeposit - Vendor successfully verified the OTP and updated the deposit details: ${JSON.stringify(depositRecord)} }`,
-            );
 
-            let data: any = {};
-            data = {
-              id: recordExists?.id,
-              customer_code: recordExists?.customerDetails?.customer_code,
-              deposit_code: depositRecord?.deposit_code,
-              deposit_id: depositRecord?.id,
-              first_name: recordExists?.first_name,
-              last_name: recordExists?.last_name,
-              email: recordExists?.email,
-              profile_pic: recordExists?.profile_pic,
-              role_id: recordExists?.role_id,
-              phone_country_code: recordExists?.phone_country_code,
-              phone_code: recordExists?.phone_code,
-              phone: recordExists?.phone,
-              dob: recordExists?.dob || '',
-              gender: recordExists?.gender,
-              user_verified: recordExists?.user_verified,
-              ist: await this.convertToIST(recordExists?.created_at),
-              customerAddress: recordExists?.customerAddress,
-            };
-            responseData = prepareJSONResponse(data, 'Success', statusCodes.OK);
+              logger.info(
+                `startPhysicalDeposit - Vendor successfully verified the OTP and updated the deposit details: ${JSON.stringify(depositRecord)} }`,
+              );
+
+              let data: any = {};
+              data = {
+                id: recordExists?.id,
+                customer_code: recordExists?.customerDetails?.customer_code,
+                deposit_code: depositRecord?.deposit_code,
+                deposit_id: depositRecord?.id,
+                first_name: recordExists?.first_name,
+                last_name: recordExists?.last_name,
+                email: recordExists?.email,
+                profile_pic: recordExists?.profile_pic,
+                role_id: recordExists?.role_id,
+                phone_country_code: recordExists?.phone_country_code,
+                phone_code: recordExists?.phone_code,
+                phone: recordExists?.phone,
+                dob: recordExists?.dob || '',
+                gender: recordExists?.gender,
+                user_verified: recordExists?.user_verified,
+                ist: await this.convertToIST(recordExists?.created_at),
+                customerAddress: recordExists?.customerAddress,
+              };
+              responseData = prepareJSONResponse(data, 'Success', statusCodes.OK);
+            }
           }
         }
       } catch (error) {
@@ -538,6 +553,392 @@ export default class PhysicalDepositController {
       }
       logger.info(
         `addProductsPhysicalDeposit - add products Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      );
+      return res.status(responseData.status).json(responseData);
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async summaryPhysicalDeposit(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['customer_id', 'deposit_id'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const userWhere: any = {
+          id: requestBody.customer_id,
+          is_deactivated: 0,
+          status: 1,
+        };
+        const customerWhere: any = {};
+        const recordExists = await this.usersModel.findOne({
+          where: userWhere,
+          include: [
+            {
+              model: this.customerDetailsModel,
+              where: customerWhere,
+              as: 'customerDetails',
+              attributes: { exclude: ['created_at', 'updated_at'] },
+            },
+          ],
+        });
+
+        logger.info(`summaryPhysicalDeposit - fetched user details: ${JSON.stringify(recordExists)}}`);
+
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
+        } else {
+          const depositWhere: any = {
+            id: requestBody?.deposit_id,
+            vendor_otp_verify: 1,
+            // flow_status: 3,
+          };
+          const depositProductWhere: any = {
+            deposit_id: requestBody?.deposit_id,
+          };
+          const depositRecord = await this.physicalDepositModel.findOne({
+            where: depositWhere,
+            include: [
+              {
+                model: this.physicalDepositProductsModel,
+                where: depositProductWhere,
+                as: 'depositProducts',
+                attributes: { exclude: ['created_at', 'updated_at'] },
+              },
+            ],
+          });
+
+          logger.info(`summaryPhysicalDeposit - fetched deposit details: ${JSON.stringify(depositRecord)}}`);
+          if (!depositRecord) {
+            responseData = prepareJSONResponse({}, 'Deposit details not found', statusCodes.NOT_FOUND);
+          } else {
+            // const otp = generateNumericOtp(6);
+            const otp = 123456;
+            const otpHash = hashOtp(otp.toString());
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+            const otpLogRecord = await this.otpLogModel.create({
+              user_id: recordExists?.id,
+              otp_hash: otpHash,
+              expires_at: expiresAt,
+              context: 'physical_deposit_summary',
+              attempts: 0,
+              is_used: false,
+              ref_id: depositRecord.id,
+            });
+
+            logger.info(`summaryPhysicalDeposit - Added new entry in otp log table: ${JSON.stringify(otpLogRecord)}}`);
+
+            const fullName = `${recordExists?.first_name} ${recordExists?.last_name}`;
+
+            const materialId =
+              depositRecord?.depositProducts.length > 0 && depositRecord?.depositProducts?.[0]?.material_id;
+
+            const depositSummary = {
+              deposit_code: depositRecord?.deposit_code,
+              customer_code: recordExists?.customerDetails?.customer_code,
+              material: Object.values(predefinedMaterials).find((m) => m.id === materialId)?.name || 'Unknown',
+              total_items: depositRecord?.depositProducts?.length,
+              total_pure_grams: depositRecord?.total_pure_grams,
+              price_per_gram: depositRecord?.price_per_gram,
+              estimated_value: depositRecord?.estimated_value,
+            };
+
+            const emailBody = physicalDepositSummary(fullName, otp, depositSummary, depositRecord?.depositProducts);
+
+            // const emailStatus = await sendEmail(
+            //   recordExists?.email,
+            //   emailBody,
+            //   `Vyapara - Physical Deposit - ${depositRecord?.deposit_code}`,
+            // );
+            logger.info(
+              `summaryPhysicalDeposit Summary mail Status: ${recordExists?.email} ${JSON.stringify(emailBody)}`,
+            );
+
+            await depositRecord.update({
+              flow_status: 4,
+              agreed_by_customer: 1,
+              agreed_at: new Date(),
+            });
+
+            responseData = prepareJSONResponse({}, `Sent OTP to ${recordExists?.email}.`, statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('summaryPhysicalDeposit - Error creating physical deposit.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(
+      `summaryPhysicalDeposit - Physical Deposit Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async completePhysicalDeposit(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['customer_id', 'deposit_id', 'otp'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const userWhere: any = {
+          id: requestBody.customer_id,
+          is_deactivated: 0,
+          status: 1,
+        };
+        const customerWhere: any = {};
+        const recordExists = await this.usersModel.findOne({
+          where: userWhere,
+          include: [
+            {
+              model: this.customerDetailsModel,
+              where: customerWhere,
+              as: 'customerDetails',
+              attributes: { exclude: ['created_at', 'updated_at'] },
+            },
+          ],
+        });
+
+        logger.info(`completePhysicalDeposit - fetched user details: ${JSON.stringify(recordExists)}}`);
+
+        if (!recordExists) {
+          responseData = prepareJSONResponse({}, 'User not found', statusCodes.NOT_FOUND);
+        } else {
+          const depositWhere: any = {
+            id: requestBody?.deposit_id,
+            vendor_otp_verify: 1,
+            agreed_by_customer: 1,
+            flow_status: 4,
+          };
+
+          const depositProductWhere: any = {
+            deposit_id: requestBody?.deposit_id,
+          };
+          const depositRecord = await this.physicalDepositModel.findOne({
+            where: depositWhere,
+            include: [
+              {
+                model: this.physicalDepositProductsModel,
+                where: depositProductWhere,
+                as: 'depositProducts',
+                attributes: { exclude: ['created_at', 'updated_at'] },
+              },
+            ],
+          });
+          logger.info(`completePhysicalDeposit - fetched deposit details: ${JSON.stringify(depositRecord)}}`);
+          if (!depositRecord) {
+            responseData = prepareJSONResponse({}, 'Deposit details not found', statusCodes.NOT_FOUND);
+          } else {
+            const otpWhere: any = {
+              user_id: requestBody?.customer_id,
+              is_used: 0,
+              context: 'physical_deposit_summary',
+              ref_id: requestBody?.deposit_id,
+              expires_at: {
+                [Op.gte]: new Date(),
+              },
+            };
+            const otpRecord = await this.otpLogModel.findOne({
+              where: otpWhere,
+              order: [['created_at', 'DESC']],
+            });
+            if (!otpRecord) {
+              responseData = prepareJSONResponse({}, 'No OTP data found for final deposit.', statusCodes.BAD_REQUEST);
+            } else if (otpRecord.attempts >= 5) {
+              responseData = prepareJSONResponse(
+                {},
+                'Too many failed attempts, Try again after 5 mintues',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              const hashedInputOtp = hashOtp(requestBody?.otp.toString());
+              if (otpRecord.otp_hash !== hashedInputOtp) {
+                otpRecord.attempts += 1;
+                await otpRecord.save();
+                responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
+              }
+              otpRecord.is_used = true;
+              await otpRecord.save();
+
+              const materialIdNum = depositRecord?.depositProducts?.[0]?.material_id;
+
+              const lastLedger = await this.digitalHoldingModel.findOne({
+                where: {
+                  customer_id: requestBody?.customer_id,
+                  material_id: materialIdNum,
+                },
+                order: [['created_at', 'DESC']],
+              });
+
+              const previousBalance = lastLedger ? Number(lastLedger.running_total_grams) : 0.0;
+
+              const depositGrams = Number(depositRecord?.total_pure_grams || 0);
+
+              const updatedBalance = Number((previousBalance + depositGrams).toFixed(6));
+
+              const newHolding = await this.digitalHoldingModel.create({
+                customer_id: requestBody?.customer_id,
+                material_id: materialIdNum,
+                deposit_id: depositRecord?.id,
+                transaction_type_id: predefinedTransactionType?.Deposit?.id,
+                grams: depositGrams,
+                running_total_grams: updatedBalance,
+              });
+
+              logger.info(`completePhysicalDeposit - updated digital holdings: ${JSON.stringify(newHolding)}`);
+
+              await depositRecord.update({
+                flow_status: 10,
+                final_summary_otp_verify: 1,
+                vendor_remarks: requestBody?.vendor_remarks,
+              });
+
+              logger.info(
+                `completePhysicalDeposit - Vendor successfully verified final summary OTP and finished the deposit flow: ${JSON.stringify(depositRecord)} }`,
+              );
+
+              const finalRes = {
+                deposit_code: depositRecord?.deposit_code,
+              };
+              responseData = prepareJSONResponse(finalRes, 'Success', statusCodes.OK);
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('completePhysicalDeposit - Error in completing physical deposit.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+      logger.info(
+        `completePhysicalDeposit - Complete Physical Deposit Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+      );
+      return res.status(responseData.status).json(responseData);
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getPhysicalDeposit(req: Request, res: Response) {
+    const requestBody = req.body;
+    const { start_date, end_date } = req.body;
+    const mandatoryFields = ['start_date', 'end_date'];
+
+    const missingFields = mandatoryFields.filter(
+      (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
+    );
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const dateCheck = await this.validateDateRange(start_date, end_date);
+
+        if (!dateCheck.isValid) {
+          responseData = prepareJSONResponse({}, dateCheck.error, statusCodes.BAD_REQUEST);
+          return res.status(responseData.status).json(responseData);
+        }
+
+        const { start, end } = dateCheck;
+
+        const depositWhere: any = {
+          created_at: {
+            [Op.between]: [start, end],
+          },
+        };
+
+        if (requestBody?.customer_id) {
+          depositWhere.customer_id = requestBody?.customer_id;
+        }
+        if (requestBody?.vendor_id) {
+          depositWhere.vendor_id = requestBody?.vendor_id;
+        }
+
+        const depositRecord = await this.physicalDepositModel.findAll({
+          where: depositWhere,
+          attributes: { exclude: ['updated_at'] },
+          include: [
+            {
+              model: this.usersModel,
+              as: 'user',
+              attributes: ['first_name', 'last_name', 'phone_code', 'phone', 'phone_country_code'],
+            },
+            {
+              model: this.customerDetailsModel,
+              as: 'customerDetails',
+              attributes: ['customer_code'],
+            },
+            {
+              model: this.vendorDetailsModel,
+              as: 'vendorDetails',
+              attributes: [
+                'vendor_id',
+                'vendor_code',
+                'business_name',
+                'address_line',
+                'country',
+                'state',
+                'city',
+                'pincode',
+                'gst_number',
+                'is_gst_registered',
+                'website',
+              ],
+            },
+            {
+              model: this.physicalDepositProductsModel,
+              as: 'depositProducts',
+              attributes: [
+                'id',
+                'product_type',
+                'material_id',
+                'purity',
+                'gross_weight',
+                'net_weight',
+                'pure_metal_equivalent',
+              ],
+            },
+            {
+              model: this.digitalHoldingModel,
+              as: 'digitalHoldings',
+              attributes: ['id', 'deposit_id', 'transaction_type_id', 'grams', 'running_total_grams'],
+            },
+          ],
+        });
+        logger.info(`getPhysicalDeposit - fetched deposit details: ${JSON.stringify(depositRecord)}}`);
+
+        if (!depositRecord) {
+          responseData = prepareJSONResponse({}, 'Deposit details not found', statusCodes.NOT_FOUND);
+        } else {
+          if (depositRecord?.length === 0) {
+            responseData = prepareJSONResponse([], 'No deposit found.', statusCodes.NOT_FOUND);
+          } else {
+            const allDeposits = await Promise.all(
+              depositRecord.map(async (customer: any) => {
+                return customer;
+              }),
+            );
+
+            responseData = prepareJSONResponse(allDeposits, 'Success', statusCodes.OK);
+          }
+        }
+      } catch (error) {
+        logger.error('getPhysicalDeposit - Error in getting physical deposit data.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+      logger.info(
+        `getPhysicalDeposit - Get Physical Deposit Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
       );
       return res.status(responseData.status).json(responseData);
     }

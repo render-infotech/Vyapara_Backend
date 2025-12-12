@@ -2,6 +2,7 @@ import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 import DigitalPurchase from './digitalPurchase';
 import CustomerDetails from './customerDetails';
+import PhysicalDeposit from './physicalDeposit';
 
 // Define attributes for the DigitalHoldings model
 interface DigitalHoldingsAttributes {
@@ -10,6 +11,7 @@ interface DigitalHoldingsAttributes {
   material_id: number; // 1 = Gold, 2 = Silver
   purchase_id?: number | null;
   redeem_id?: number | null;
+  deposit_id?: number | null;
   transaction_type_id: number; // 1 = Buy, 2 = Deposit, 3 = Redeem, 4 = Redeem Refund
   grams: number; // + buy, - redeem
   running_total_grams: number; // balance after this entry
@@ -35,6 +37,8 @@ class DigitalHoldings
 
   public redeem_id!: number | null;
 
+  public deposit_id!: number | null;
+
   public transaction_type_id!: number;
 
   public grams!: number;
@@ -58,6 +62,9 @@ class DigitalHoldings
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    physicalDeposit: Association<PhysicalDeposit, InstanceType<typeof PhysicalDeposit>>;
   };
 
   /**
@@ -88,6 +95,14 @@ class DigitalHoldings
         foreignKey: 'customer_id',
         targetKey: 'customer_id',
         as: 'customerDetails',
+      });
+    }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('PhysicalDeposit')) {
+      this.belongsTo(models.PhysicalDeposit, {
+        foreignKey: 'deposit_id',
+        targetKey: 'id',
+        as: 'physicalDeposit',
       });
     }
     // eslint-disable-next-line no-prototype-builtins
@@ -130,6 +145,11 @@ const DigitalHoldingsModel = (sequelize: Sequelize): typeof DigitalHoldings => {
         type: DataTypes.BIGINT,
         allowNull: true,
         comment: 'Reference to physical redeem (for REDEEM)',
+      },
+      deposit_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: 'Reference to physical deposit (for DEPOSIT)',
       },
       transaction_type_id: {
         type: DataTypes.INTEGER,

@@ -20,6 +20,17 @@ export default (physicalDepositController: PhysicalDepositController) => {
     Authentication(),
     physicalDepositController.addProductsPhysicalDeposit.bind(physicalDepositController),
   );
+  router.post(
+    '/step-3',
+    Authentication(),
+    physicalDepositController.summaryPhysicalDeposit.bind(physicalDepositController),
+  );
+  router.post(
+    '/verify/otp-2',
+    Authentication(),
+    physicalDepositController.completePhysicalDeposit.bind(physicalDepositController),
+  );
+  router.post('/get', Authentication(), physicalDepositController.getPhysicalDeposit.bind(physicalDepositController));
 
   return router;
 };

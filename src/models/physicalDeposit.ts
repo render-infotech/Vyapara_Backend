@@ -4,6 +4,7 @@ import Users from './users';
 import VendorDetails from './vendorDetails';
 import CustomerDetails from './customerDetails';
 import PhysicalDepositProducts from './physicalDepositProducts';
+import DigitalHolding from './digitalHolding';
 
 // Define attributes for the PhysicalRedeem model
 interface PhysicalDepositAttributes {
@@ -82,6 +83,9 @@ class PhysicalDeposit
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     physicalDepositProducts: Association<PhysicalDepositProducts, InstanceType<typeof PhysicalDepositProducts>>;
+    // @ts-ignore
+    // eslint-disable-next-line no-use-before-define
+    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
   };
 
   /**
@@ -121,6 +125,13 @@ class PhysicalDeposit
         as: 'depositProducts',
       });
     }
+    // eslint-disable-next-line no-prototype-builtins
+    if (models.hasOwnProperty('DigitalHoldings')) {
+      this.hasOne(models.DigitalHolding, {
+        foreignKey: 'deposit_id',
+        as: 'digitalHoldings',
+      });
+    }
   }
 }
 
@@ -151,7 +162,7 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
       },
       kyc_verified: {
         type: DataTypes.INTEGER,
-        defaultValue: 1,
+        defaultValue: 0,
         comment: '1 = KYC Verified, 0 = Not Verified',
       },
       vendor_otp_verify: {

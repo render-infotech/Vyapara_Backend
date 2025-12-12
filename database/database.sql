@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS `digital_holdings` (
   `material_id` INT NOT NULL COMMENT 'Material type (1 = Gold, 2 = Silver)',
   `purchase_id` BIGINT DEFAULT NULL COMMENT 'Reference to digital purchase (for BUY)',
   `redeem_id` BIGINT DEFAULT NULL COMMENT 'Reference to physical redeem (for REDEEM)',
+  `deposit_id` BIGINT DEFAULT NULL COMMENT 'Reference to physical deposit (for DEPOSIT)',
   `transaction_type_id` INT NOT NULL COMMENT 'Transaction type (1 = Buy, 2 = Deposit, 3 = Redeem)',
   `grams` DECIMAL(15,6) NOT NULL COMMENT 'Positive for buy, negative for redeem',
   `running_total_grams` DECIMAL(15,6) NOT NULL COMMENT 'Updated balance after this entry',
@@ -220,10 +221,13 @@ CREATE TABLE IF NOT EXISTS `digital_holdings` (
   CONSTRAINT `fk_digital_holdings_purchase`
     FOREIGN KEY (`purchase_id`) REFERENCES `digital_purchase`(`id`)
     ON DELETE SET NULL
+  CONSTRAINT `fk_digital_holdings_deposit`
+    FOREIGN KEY (`deposit_id`) REFERENCES `physical_deposit`(`id`)
+    ON DELETE SET NULL
 ) ENGINE=InnoDB
 COMMENT='Unified data for digital gold/silver holdings';
 
--- Created new columns for digital purchase- by Afrid
+-- Alter new columns for digital purchase- by Afrid
 ALTER TABLE digital_purchase
 ADD COLUMN razorpay_order_id VARCHAR(255),
 ADD COLUMN razorpay_payment_id VARCHAR(255),
@@ -302,7 +306,7 @@ CREATE TABLE IF NOT EXISTS `rider_details` (
   CONSTRAINT `rider_details_ibfk_2` FOREIGN KEY (`vendor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Rider details and vendor association';
 
--- Created new columns for physical redeem - by Afrid
+-- Alter new columns for physical redeem - by Afrid
 ALTER TABLE `physical_redeem` ADD COLUMN `signature` VARCHAR(255) DEFAULT NULL COMMENT 'URL of the delivery signature';
 
 
@@ -312,7 +316,7 @@ CREATE TABLE IF NOT EXISTS `physical_deposit` (
   `deposit_code` VARCHAR(50) UNIQUE COMMENT 'Unique deposit reference code (e.g., PD20251209-ABC123)',
   `customer_id` BIGINT NOT NULL COMMENT 'Customer ID who is giving the deposit to vendor',
   `vendor_id` BIGINT NOT NULL COMMENT 'Vendor ID who is recording the deposit',
-  `kyc_verified` INT NOT NULL DEFAULT 1 COMMENT '1 = KYC Verified, 0 = Not Verified',
+  `kyc_verified` INT NOT NULL DEFAULT 0 COMMENT '1 = KYC Verified, 0 = Not Verified',
   `vendor_otp_verify` INT DEFAULT 0 COMMENT 'OTP verification for customer, 0 = Pending, 1 = OTP Verified, 2 = Failed',
   `agreed_by_customer` INT NOT NULL DEFAULT 0 COMMENT '0 = Not Agreed, 1 = Agreed',
   `agreed_at` DATETIME NULL COMMENT 'Timestamp when customer and vendor reached agreement',
@@ -360,7 +364,6 @@ CREATE TABLE IF NOT EXISTS `physical_deposit_products` (
     FOREIGN KEY (`deposit_id`) REFERENCES `physical_deposit`(`id`)
     ON DELETE CASCADE
 );
-
 
 -- Alter otp logs table - by Shubham
 ALTER TABLE `otp_logs`

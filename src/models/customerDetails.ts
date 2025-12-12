@@ -98,7 +98,7 @@ class CustomerDetails
       });
     }
     // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('DigitalHolding')) {
+    if (models.hasOwnProperty('DigitalHoldings')) {
       this.hasMany(models.DigitalHolding, {
         foreignKey: 'customer_id',
         sourceKey: 'customer_id',
