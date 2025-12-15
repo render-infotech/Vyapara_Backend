@@ -909,11 +909,11 @@ export default class PhysicalDepositController {
                 'pure_metal_equivalent',
               ],
             },
-            {
-              model: this.digitalHoldingModel,
-              as: 'digitalHoldings',
-              attributes: ['id', 'deposit_id', 'transaction_type_id', 'grams', 'running_total_grams'],
-            },
+            // {
+            //   model: this.digitalHoldingModel,
+            //   as: 'digitalHoldings',
+            //   attributes: ['id', 'deposit_id', 'transaction_type_id', 'grams', 'running_total_grams'],
+            // },
           ],
         });
         logger.info(`getPhysicalDeposit - fetched deposit details: ${JSON.stringify(depositRecord)}}`);
@@ -929,7 +929,6 @@ export default class PhysicalDepositController {
                 return customer;
               }),
             );
-
             responseData = prepareJSONResponse(allDeposits, 'Success', statusCodes.OK);
           }
         }

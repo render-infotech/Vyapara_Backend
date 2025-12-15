@@ -233,9 +233,11 @@ const PhysicalDepositModel = (sequelize: Sequelize) => {
 
       hooks: {
         beforeValidate(record: any) {
-          const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-          const random = crypto.randomBytes(3).toString('hex').toUpperCase();
-          record.deposit_code = `PD${datePart}-${random}`;
+          if (!record.deposit_code) {
+            const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const random = crypto.randomBytes(3).toString('hex').toUpperCase();
+            record.deposit_code = `PD${datePart}-${random}`;
+          }
         },
       },
     },
