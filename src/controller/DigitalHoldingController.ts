@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import {
-  predefinedFlowStatus,
+  predefinedRedeemFlowStatus,
   predefinedMaterials,
-  predefinedPurchaseStatus,
   predefinedTaxType,
   predefinedTransactionStatus,
   predefinedTransactionType,
   statusCodes,
+  predefinedPurchaseStatus,
 } from '../utils/constants';
 import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
@@ -19,6 +19,9 @@ import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
 import PhysicalRedeemModel from '../models/physicalRedeem';
+import PhysicalDepositModel from '../models/physicalDeposit';
+import VendorDetailsModel from '../models/vendorDetails';
+
 import { Op } from 'sequelize';
 
 export default class DigitalHoldingController {
@@ -49,6 +52,12 @@ export default class DigitalHoldingController {
   // @ts-ignore
   private physicalRedeemModel: PhysicalRedeemModel;
 
+  // @ts-ignore
+  private physicalDepositModel: PhysicalDepositModel;
+
+  // @ts-ignore
+  private vendorDetailsModel: VendorDetailsModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -68,6 +77,10 @@ export default class DigitalHoldingController {
     digitalHoldingModel: DigitalHoldingModel,
     // @ts-ignore
     physicalRedeemModel: PhysicalRedeemModel,
+    // @ts-ignore
+    physicalDepositModel: PhysicalDepositModel,
+    // @ts-ignore
+    vendorDetailsModel: VendorDetailsModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
@@ -78,6 +91,8 @@ export default class DigitalHoldingController {
     this.serviceFeeRateModel = serviceFeeRateModel;
     this.digitalHoldingModel = digitalHoldingModel;
     this.physicalRedeemModel = physicalRedeemModel;
+    this.physicalDepositModel = physicalDepositModel;
+    this.vendorDetailsModel = vendorDetailsModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -302,12 +317,15 @@ export default class DigitalHoldingController {
     const { Buy, Deposit, Redeem, RedeemRefund } = predefinedTransactionType;
 
     const { Completed, Pending } = predefinedPurchaseStatus;
-    const { Delivered, Admin_Rejected } = predefinedFlowStatus;
+    const { Delivered, Admin_Rejected } = predefinedRedeemFlowStatus;
 
     const handlers: Record<number, () => string | null> = {
       [Buy.id]: () => (holding.digitalPurchase?.purchase_status === Completed.id ? Completed.name : Pending.name),
 
-      [Deposit.id]: () => null,
+      [Deposit.id]: () =>
+        holding.physicalDeposit?.flow_status === 10
+          ? predefinedTransactionStatus.Completed.name
+          : predefinedTransactionStatus.Pending.name,
 
       [Redeem.id]: () =>
         holding.physicalRedeem?.flow_status === Delivered
@@ -328,7 +346,7 @@ export default class DigitalHoldingController {
     const handlers: Record<number, () => string | null> = {
       [Buy.id]: () => holding.digitalPurchase?.purchase_code,
 
-      [Deposit.id]: () => null,
+      [Deposit.id]: () => holding.physicalRedeem?.deposit_code,
 
       [Redeem.id]: () => holding.physicalRedeem?.redeem_code,
 
@@ -338,8 +356,8 @@ export default class DigitalHoldingController {
     return handlers[transaction_type_id]?.() ?? 'Unknown';
   }
 
-  getTransactionDetails(transaction_type_id: number, holding: any) {
-    const { Buy, Redeem, RedeemRefund } = predefinedTransactionType;
+  async getTransactionDetails(transaction_type_id: number, holding: any) {
+    const { Buy, Deposit, Redeem, RedeemRefund } = predefinedTransactionType;
 
     if (transaction_type_id === Buy.id) {
       const dp = holding.digitalPurchase;
@@ -361,6 +379,22 @@ export default class DigitalHoldingController {
         razorpay_payment_id: dp?.razorpay_payment_id ?? null,
         razorpay_signature: dp?.razorpay_signature ?? null,
         payment_status: dp?.payment_status ?? null,
+      };
+    }
+
+    if (transaction_type_id === Deposit.id) {
+      const pd = holding.physicalDeposit;
+      return {
+        deposit_code: pd?.deposit_code ?? null,
+        kyc_verified: pd?.kyc_verified === 1 ? 'Yes' : 'No',
+        agreed_by_customer: pd?.agreed_by_customer === 1 ? 'Yes' : 'No',
+        agreed_at: await this.convertToIST(pd?.agreed_at),
+        total_pure_grams: pd?.total_pure_grams ?? '0.00',
+        price_per_gram: pd?.price_per_gram,
+        estimated_value: pd?.estimated_value ?? '0.00',
+        vendor_remarks: pd?.vendor_remarks ?? null,
+        flow_status: pd?.flow_status ?? null,
+        vendor_details: pd?.vendorDetails,
       };
     }
 
@@ -416,7 +450,7 @@ export default class DigitalHoldingController {
           },
         };
 
-        const purchaseWhere: any = {
+        const txnWhere: any = {
           customer_id,
           created_at: {
             [Op.between]: [start, end],
@@ -425,7 +459,7 @@ export default class DigitalHoldingController {
 
         if (material_id) {
           holdingsWhere.material_id = material_id;
-          purchaseWhere.material_id = material_id;
+          txnWhere.material_id = material_id;
         }
 
         const holdingsData = await this.digitalHoldingModel.findAll({
@@ -445,7 +479,7 @@ export default class DigitalHoldingController {
               model: this.digitalPurchaseModel,
               as: 'digitalPurchase',
               required: false,
-              where: purchaseWhere,
+              where: txnWhere,
               attributes: {
                 exclude: [
                   'customer_id',
@@ -463,7 +497,34 @@ export default class DigitalHoldingController {
               model: this.physicalRedeemModel,
               as: 'physicalRedeem',
               required: false,
-              where: purchaseWhere,
+              where: txnWhere,
+              attributes: {
+                exclude: ['customer_id', 'transaction_type_id', 'created_at', 'updated_at'],
+              },
+              order: [['created_at', 'DESC']],
+            },
+            {
+              model: this.physicalDepositModel,
+              as: 'physicalDeposit',
+              required: false,
+              where: txnWhere,
+              include: [
+                {
+                  model: this.vendorDetailsModel,
+                  as: 'vendorDetails',
+                  required: true,
+                  attributes: [
+                    'vendor_code',
+                    'business_name',
+                    'address_line',
+                    'country',
+                    'state',
+                    'city',
+                    'pincode',
+                    'is_gst_registered',
+                  ],
+                },
+              ],
               attributes: {
                 exclude: ['customer_id', 'transaction_type_id', 'created_at', 'updated_at'],
               },
@@ -494,7 +555,7 @@ export default class DigitalHoldingController {
                 transaction_code: await this.getTransactionCode(holding.transaction_type_id, holding),
                 customer_code: holding.customerDetails?.customer_code ?? null,
                 ist: await this.convertToIST(holding.created_at),
-                transaction_details: this.getTransactionDetails(holding.transaction_type_id, holding),
+                transaction_details: await this.getTransactionDetails(holding.transaction_type_id, holding),
               };
             }),
           );
@@ -537,11 +598,11 @@ export default class DigitalHoldingController {
 
     try {
       const pendingStatuses = [
-        predefinedFlowStatus.Requested.id,
-        predefinedFlowStatus.Admin_Approved.id,
-        predefinedFlowStatus.Vendor_Assigned.id,
-        predefinedFlowStatus.Rider_Assigned.id,
-        predefinedFlowStatus.Out_for_Delivery.id,
+        predefinedRedeemFlowStatus.Requested.id,
+        predefinedRedeemFlowStatus.Admin_Approved.id,
+        predefinedRedeemFlowStatus.Vendor_Assigned.id,
+        predefinedRedeemFlowStatus.Rider_Assigned.id,
+        predefinedRedeemFlowStatus.Out_for_Delivery.id,
       ];
       const dateCheck = await this.validateDateRange(start_date, end_date);
 
@@ -558,7 +619,7 @@ export default class DigitalHoldingController {
       const physicalRedeemWhere: any = {
         customer_id: userId,
         transaction_type_id: predefinedTransactionType.Redeem.id,
-        flow_status: predefinedFlowStatus.Delivered.id,
+        flow_status: predefinedRedeemFlowStatus.Delivered.id,
       };
       const pendingRedeemWhere: any = {
         customer_id: userId,

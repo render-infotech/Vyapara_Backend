@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
-import { predefinedRoles, predefinedFlowStatus, statusCodes } from '../utils/constants';
+import { predefinedRoles, predefinedRedeemFlowStatus, statusCodes } from '../utils/constants';
 import UsersModel from '../models/users';
 import RiderDetailsModel from '../models/riderDetails';
 import PhysicalRedeemModel from '../models/physicalRedeem';
@@ -106,7 +106,7 @@ export default class DashboardController {
         where: {
           vendor_id: userId,
           flow_status: {
-            [Op.in]: [predefinedFlowStatus.Vendor_Assigned.id, predefinedFlowStatus.Rider_Assigned.id],
+            [Op.in]: [predefinedRedeemFlowStatus.Vendor_Assigned.id, predefinedRedeemFlowStatus.Rider_Assigned.id],
           },
         },
       });
@@ -114,7 +114,7 @@ export default class DashboardController {
       const totalDeliveriesDelivered = await this.physicalRedeemModel.count({
         where: {
           vendor_id: userId,
-          flow_status: predefinedFlowStatus.Delivered.id,
+          flow_status: predefinedRedeemFlowStatus.Delivered.id,
         },
       });
 
@@ -124,7 +124,7 @@ export default class DashboardController {
         col: 'rider_id',
         where: {
           vendor_id: userId,
-          flow_status: predefinedFlowStatus.Out_for_Delivery.id,
+          flow_status: predefinedRedeemFlowStatus.Out_for_Delivery.id,
         },
       });
 
@@ -176,7 +176,7 @@ export default class DashboardController {
       const currentlyOutForDelivery = await this.physicalRedeemModel.count({
         where: {
           rider_id: riderId,
-          flow_status: predefinedFlowStatus.Out_for_Delivery.id,
+          flow_status: predefinedRedeemFlowStatus.Out_for_Delivery.id,
         },
       });
 
@@ -188,7 +188,7 @@ export default class DashboardController {
       const totalRedemptionDeliveriesToday = await this.physicalRedeemModel.count({
         where: {
           rider_id: riderId,
-          flow_status: predefinedFlowStatus.Delivered.id,
+          flow_status: predefinedRedeemFlowStatus.Delivered.id,
           updated_at: {
             [Op.between]: [startOfDay, endOfDay],
           },

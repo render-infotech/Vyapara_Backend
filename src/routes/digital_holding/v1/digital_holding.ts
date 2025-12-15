@@ -11,7 +11,7 @@ export default (digitalHoldingController: DigitalHoldingController) => {
     digitalHoldingController.getCustomerCurrentHoldings.bind(digitalHoldingController),
   );
   router.post(
-    '/history',
+    '/transactions',
     Authentication(),
     digitalHoldingController.getCustomerHoldings.bind(digitalHoldingController),
   );

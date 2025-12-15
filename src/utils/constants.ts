@@ -185,7 +185,7 @@ export const predefinedServiceFeeFor = {
   },
 };
 
-export const predefinedFlowStatus = {
+export const predefinedRedeemFlowStatus = {
   Requested: {
     id: 1,
     name: 'Requested',
@@ -306,6 +306,39 @@ export const predefinedPurchaseStatus = {
   Refunded: {
     id: 5,
     name: 'Refunded',
+    can_modify: 0,
+  },
+};
+
+export const predefinedDepositFlow = {
+  VendorVerificationPending: {
+    id: 1,
+    name: 'Vendor Verification Pending',
+    can_modify: 1,
+  },
+  VendorOTPVerified: {
+    id: 2,
+    name: 'Vendor OTP Verified',
+    can_modify: 1,
+  },
+  AgreementCompleted: {
+    id: 3,
+    name: 'Agreement Completed',
+    can_modify: 1,
+  },
+  FinalSummaryOTPSent: {
+    id: 4,
+    name: 'Final Summary OTP Sent',
+    can_modify: 0,
+  },
+  FinalSummaryOTPVerified: {
+    id: 5,
+    name: 'Final Summary OTP Verified',
+    can_modify: 0,
+  },
+  FlowCompleted: {
+    id: 10,
+    name: 'Flow Completed',
     can_modify: 0,
   },
 };

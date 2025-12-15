@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import {
   predefinedAdminStatus,
-  predefinedFlowStatus,
+  predefinedRedeemFlowStatus,
   predefinedRiderStatus,
   predefinedRoles,
   predefinedTransactionType,
@@ -654,7 +654,7 @@ export default class PhysicalRedeemController {
         return {
           ...item,
           admin_status_text: getAdminStatusName(item.admin_status),
-          flow_status_text: getStatusName(item.flow_status, predefinedFlowStatus),
+          flow_status_text: getStatusName(item.flow_status, predefinedRedeemFlowStatus),
           vendor_status_text: getStatusName(item.vendor_status || 0, predefinedVendorStatus),
           rider_status_text: getStatusName(item.rider_status || 0, predefinedRiderStatus),
         };
@@ -716,7 +716,7 @@ export default class PhysicalRedeemController {
       }
 
       redeemRecord.vendor_id = vendor_id;
-      redeemRecord.flow_status = predefinedFlowStatus.Vendor_Assigned.id; // Vendor Assigned
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Vendor_Assigned.id; // Vendor Assigned
       redeemRecord.admin_status = predefinedAdminStatus.Approved.id; // Approved
       redeemRecord.vendor_status = predefinedVendorStatus.Pending.id; // Pending vendor response
       await redeemRecord.save();
@@ -788,7 +788,7 @@ export default class PhysicalRedeemController {
 
       redeemRecord.rider_id = rider_id;
       redeemRecord.rider_status = predefinedVendorStatus.Pending.id; // Pending rider acceptance (if we had that flow, or just assigned)
-      redeemRecord.flow_status = predefinedFlowStatus.Rider_Assigned.id; // Rider Assigned
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Rider_Assigned.id; // Rider Assigned
       await redeemRecord.save();
 
       responseData = prepareJSONResponse({}, 'Rider assigned successfully.', statusCodes.OK);
@@ -841,8 +841,8 @@ export default class PhysicalRedeemController {
       }
 
       if (
-        redeemRecord.admin_status === predefinedFlowStatus.Admin_Approved.id ||
-        redeemRecord.admin_status === predefinedFlowStatus.Admin_Rejected.id
+        redeemRecord.admin_status === predefinedRedeemFlowStatus.Admin_Approved.id ||
+        redeemRecord.admin_status === predefinedRedeemFlowStatus.Admin_Rejected.id
       ) {
         responseData = prepareJSONResponse(
           {},
@@ -854,7 +854,7 @@ export default class PhysicalRedeemController {
       }
 
       redeemRecord.admin_status = predefinedAdminStatus.Rejected.id;
-      redeemRecord.flow_status = predefinedFlowStatus.Admin_Rejected.id;
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Admin_Rejected.id;
       redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id;
       redeemRecord.rider_status = predefinedRiderStatus.Rejected.id;
 
@@ -1004,7 +1004,7 @@ export default class PhysicalRedeemController {
 
       // Revert status so Admin can see it's back in their court (but marked as rejected by this vendor)
       redeemRecord.vendor_status = predefinedVendorStatus.Rejected.id;
-      redeemRecord.flow_status = predefinedFlowStatus.Admin_Approved.id; // Back to Admin Approved state
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Admin_Approved.id; // Back to Admin Approved state
       redeemRecord.remarks = remarks;
       await redeemRecord.save();
 
@@ -1090,7 +1090,7 @@ export default class PhysicalRedeemController {
       const result = {
         ...redeemRecord.toJSON(),
         admin_status_text: getAdminStatusName(redeemRecord.admin_status),
-        flow_status_text: getStatusName(redeemRecord.flow_status, predefinedFlowStatus),
+        flow_status_text: getStatusName(redeemRecord.flow_status, predefinedRedeemFlowStatus),
         vendor_status_text: getStatusName(redeemRecord.vendor_status || 0, predefinedVendorStatus),
         rider_status_text: getStatusName(redeemRecord.rider_status || 0, predefinedVendorStatus), // Assuming Rider uses same status codes as Vendor for now
       };
@@ -1197,7 +1197,7 @@ export default class PhysicalRedeemController {
       }
 
       redeemRecord.rider_status = predefinedRiderStatus.Rejected.id;
-      redeemRecord.flow_status = predefinedFlowStatus.Vendor_Assigned.id;
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Vendor_Assigned.id;
       redeemRecord.remarks = remarks;
       await redeemRecord.save();
 
@@ -1259,7 +1259,7 @@ export default class PhysicalRedeemController {
         return res.status(responseData.status).json(responseData);
       }
 
-      if (redeemRecord.flow_status !== predefinedFlowStatus.Rider_Assigned.id) {
+      if (redeemRecord.flow_status !== predefinedRedeemFlowStatus.Rider_Assigned.id) {
         responseData = prepareJSONResponse(
           {},
           'Invalid status transition. Status must be "Rider Assigned" to mark as "Out for Delivery".',
@@ -1269,7 +1269,7 @@ export default class PhysicalRedeemController {
       }
 
       // Update status
-      redeemRecord.flow_status = predefinedFlowStatus.Out_for_Delivery.id;
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Out_for_Delivery.id;
       await redeemRecord.save();
 
       // Generate and Send OTP to Customer
@@ -1342,7 +1342,7 @@ export default class PhysicalRedeemController {
         return res.status(responseData.status).json(responseData);
       }
 
-      if (redeemRecord.flow_status !== predefinedFlowStatus.Out_for_Delivery.id) {
+      if (redeemRecord.flow_status !== predefinedRedeemFlowStatus.Out_for_Delivery.id) {
         responseData = prepareJSONResponse(
           {},
           'Invalid status. Order must be "Out for Delivery" to resend OTP.',
@@ -1438,7 +1438,7 @@ export default class PhysicalRedeemController {
         return res.status(responseData.status).json(responseData);
       }
 
-      if (redeemRecord.flow_status !== predefinedFlowStatus.Out_for_Delivery.id) {
+      if (redeemRecord.flow_status !== predefinedRedeemFlowStatus.Out_for_Delivery.id) {
         responseData = prepareJSONResponse(
           {},
           'Invalid status transition. Status must be "Out for Delivery" to mark as "Delivered".',
@@ -1483,7 +1483,7 @@ export default class PhysicalRedeemController {
       await otpRecord.save();
 
       // Update Status
-      redeemRecord.flow_status = predefinedFlowStatus.Delivered.id;
+      redeemRecord.flow_status = predefinedRedeemFlowStatus.Delivered.id;
       redeemRecord.rider_status = predefinedRiderStatus.Approved.id; // Mark rider task as completed/approved
 
       if (fileLocation) {

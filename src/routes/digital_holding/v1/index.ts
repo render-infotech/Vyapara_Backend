@@ -11,6 +11,8 @@ import MaterialRateModel from '../../../models/materialRate';
 import TaxRateModel from '../../../models/taxRate';
 import ServiceFeeRateModel from '../../../models/serviceFeeRate';
 import PhysicalRedeemModel from '../../../models/physicalRedeem';
+import PhysicalDepositModel from '../../../models/physicalDeposit';
+import VendorDetailsModel from '../../../models/vendorDetails';
 
 import ControllerRoutes from './digital_holding';
 
@@ -23,6 +25,8 @@ const MaterialRate = MaterialRateModel(sequelize);
 const TaxRate = TaxRateModel(sequelize);
 const ServiceFeeRate = ServiceFeeRateModel(sequelize);
 const PhysicalRedeem = PhysicalRedeemModel(sequelize);
+const PhysicalDeposit = PhysicalDepositModel(sequelize);
+const VendorDetails = VendorDetailsModel(sequelize);
 
 Users.associate({
   CustomerDetails,
@@ -33,7 +37,9 @@ Users.associate({
 CustomerDetails.associate({ Users, CustomerAddress, DigitalPurchase, DigitalHolding });
 CustomerAddress.associate({ Users, CustomerDetails });
 DigitalPurchase.associate({ Users, DigitalHolding, CustomerDetails });
-DigitalHolding.associate({ Users, DigitalPurchase, CustomerDetails, PhysicalRedeem });
+DigitalHolding.associate({ Users, DigitalPurchase, CustomerDetails, PhysicalRedeem, PhysicalDeposit });
+PhysicalDeposit.associate({ DigitalHolding, VendorDetails });
+VendorDetails.associate({ PhysicalDeposit });
 
 const digitalHoldingController = new DigitalHoldingController(
   Users,
@@ -45,6 +51,8 @@ const digitalHoldingController = new DigitalHoldingController(
   ServiceFeeRate,
   DigitalHolding,
   PhysicalRedeem,
+  PhysicalDeposit,
+  VendorDetails,
 );
 
 const digitalHoldingControllerRoutes = ControllerRoutes(digitalHoldingController);
