@@ -126,7 +126,7 @@ class PhysicalDeposit
       });
     }
     // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('DigitalHoldings')) {
+    if (models.hasOwnProperty('DigitalHolding')) {
       this.hasOne(models.DigitalHolding, {
         foreignKey: 'deposit_id',
         as: 'digitalHoldings',
