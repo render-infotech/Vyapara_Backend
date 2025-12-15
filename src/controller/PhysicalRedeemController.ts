@@ -563,20 +563,26 @@ export default class PhysicalRedeemController {
       const { admin_status, vendor_status, rider_status, flow_status, start_date, end_date } = req.query;
 
       if (role_id === predefinedRoles.Admin.id) {
-        // Admin sees all
+        // Admin sees all except ones rejected by Admin
         whereClause = {};
       } else if (role_id === predefinedRoles.Vendor.id) {
-        // Vendor sees assigned redemptions
-        whereClause = { vendor_id: userId };
+        // Vendor sees assigned redemptions except ones rejected by Vendor
+        whereClause = {
+          vendor_id: userId,
+          vendor_status: { [Op.ne]: predefinedVendorStatus.Rejected.id },
+        };
       } else if (role_id === predefinedRoles.Rider.id) {
-        // Rider sees assigned redemptions
-        whereClause = { rider_id: userId };
+        // Rider sees assigned redemptions except ones rejected by Rider
+        whereClause = {
+          rider_id: userId,
+          rider_status: { [Op.ne]: predefinedRiderStatus.Rejected.id },
+        };
       } else if (role_id === predefinedRoles.User.id) {
         // Customer sees their own redemptions
-        whereClause = { customer_id: userId };
+        whereClause = {
+          customer_id: userId,
+        };
       } else {
-        // Other roles (if any) shouldn't see anything or forbidden
-        // For now, let's return empty or forbidden. Let's return forbidden for safety.
         responseData = prepareJSONResponse({}, 'Access denied', statusCodes.FORBIDDEN);
         return res.status(responseData.status).json(responseData);
       }
