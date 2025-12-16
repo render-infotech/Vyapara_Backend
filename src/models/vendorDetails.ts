@@ -31,6 +31,7 @@ interface VendorDetailsAttributes {
   working_hours?: WorkingHour[];
   rating?: number;
   review_count?: number;
+  geo_location?: string;
   is_complete?: number; // 0 - Pending, 1 - Completed
   created_at?: Date;
   updated_at?: Date;
@@ -79,6 +80,8 @@ class VendorDetails
   public rating?: number;
 
   public review_count?: number;
+
+  public geo_location?: string;
 
   public is_complete?: number;
 
@@ -231,6 +234,11 @@ const VendorDetailsModel = (sequelize: Sequelize): typeof VendorDetails => {
         allowNull: true,
         defaultValue: 0,
         comment: 'Total number of reviews',
+      },
+      geo_location: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        comment: 'Readable location or map link',
       },
       is_complete: {
         type: DataTypes.TINYINT,

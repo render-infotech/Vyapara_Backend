@@ -346,7 +346,7 @@ export default class DigitalHoldingController {
     const handlers: Record<number, () => string | null> = {
       [Buy.id]: () => holding.digitalPurchase?.purchase_code,
 
-      [Deposit.id]: () => holding.physicalRedeem?.deposit_code,
+      [Deposit.id]: () => holding.physicalDeposit?.deposit_code,
 
       [Redeem.id]: () => holding.physicalRedeem?.redeem_code,
 
