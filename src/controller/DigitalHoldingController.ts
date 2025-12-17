@@ -328,12 +328,12 @@ export default class DigitalHoldingController {
           : predefinedTransactionStatus.Pending.name,
 
       [Redeem.id]: () =>
-        holding.physicalRedeem?.flow_status === Delivered
+        holding.physicalRedeem?.flow_status === Delivered.id
           ? predefinedTransactionStatus.Completed.name
           : predefinedTransactionStatus.Pending.name,
 
       [RedeemRefund.id]: () =>
-        holding.physicalRedeem?.flow_status === Admin_Rejected
+        holding.physicalRedeem?.flow_status === Admin_Rejected.id
           ? predefinedTransactionStatus.Refunded.name
           : predefinedTransactionStatus.Pending.name,
     };
