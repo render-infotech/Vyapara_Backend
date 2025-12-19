@@ -389,3 +389,17 @@ COLLATE=utf8mb4_unicode_ci
 COMMENT='Stores static/dynamic page content';
 
 
+-- Created new table for storing service control data - by Shubham
+CREATE TABLE IF NOT EXISTS `service_control` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary ID of the service control record',
+  `service_key` BIGINT DEFAULT NULL COMMENT 'Unique identifier of the service flow (mapped in code)',
+  `is_enabled` TINYINT NOT NULL DEFAULT 1 COMMENT 'Service status: 1 = Enabled, 0 = Disabled',
+  `reason` VARCHAR(255) DEFAULT NULL COMMENT 'Reason provided by admin when disabling the service',
+  `toggled_by` BIGINT DEFAULT NULL COMMENT 'Admin user ID who last toggled the service',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation date',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record last update date',
+  PRIMARY KEY (`id`)
+) COMMENT='Stores service control data';
+
+
+

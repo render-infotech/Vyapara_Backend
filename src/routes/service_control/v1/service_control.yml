@@ -1,0 +1,11 @@
+service_control:
+  handler: src/routes/service_control/v1/index.service_control
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/service-control
+        method: any
+    - http:
+        path: /v1/service-control/{proxy+}
+        method: any

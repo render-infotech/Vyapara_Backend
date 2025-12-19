@@ -13,6 +13,7 @@ import MaterialRateModel from '../models/materialRate';
 import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
 import DigitalHoldingModel from '../models/digitalHolding';
+import ServiceControlModel from '../models/serviceControl';
 
 import { Op } from 'sequelize';
 
@@ -43,6 +44,9 @@ export default class DigitalPurchaseController {
   // @ts-ignore
   private digitalHoldingModel: DigitalHoldingModel;
 
+  // @ts-ignore
+  private serviceControlModel: ServiceControlModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -60,6 +64,8 @@ export default class DigitalPurchaseController {
     serviceFeeRateModel: ServiceFeeRateModel,
     // @ts-ignore
     digitalHoldingModel: DigitalHoldingModel,
+    // @ts-ignore
+    serviceControlModel: ServiceControlModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
@@ -69,6 +75,7 @@ export default class DigitalPurchaseController {
     this.taxRateModel = taxRateModel;
     this.serviceFeeRateModel = serviceFeeRateModel;
     this.digitalHoldingModel = digitalHoldingModel;
+    this.serviceControlModel = serviceControlModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -290,6 +297,49 @@ export default class DigitalPurchaseController {
   }
 
   // eslint-disable-next-line class-methods-use-this
+  async getLatestServiceStatus(service_key?: number) {
+    try {
+      const serviceWhere: any = {};
+
+      if (service_key) {
+        serviceWhere.service_key = service_key;
+      }
+
+      const serviceStatus = await this.serviceControlModel.findOne({
+        where: serviceWhere,
+        order: [['created_at', 'DESC']],
+      });
+
+      logger.info(`getLatestServiceStatus - Fetched service control data ${JSON.stringify(serviceStatus)}`);
+
+      if (!serviceStatus) {
+        return {
+          service_key,
+          is_enabled: 1,
+          is_active: true,
+          reason: null,
+        };
+      } else {
+        const isEnabled = Number(serviceStatus.is_enabled) === 1;
+        return {
+          service_key: serviceStatus.service_key,
+          is_enabled: serviceStatus.is_enabled,
+          is_active: isEnabled,
+          reason: serviceStatus.reason || null,
+        };
+      }
+    } catch (error) {
+      logger.error('getLatestServiceStatus - Error fetching service status.', error);
+      return {
+        service_key,
+        is_enabled: 0,
+        is_active: false,
+        reason: null,
+      };
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   async getDigitalPurchasePreview(req: Request, res: Response) {
     const requestBody = req.body;
     // @ts-ignore
@@ -299,7 +349,11 @@ export default class DigitalPurchaseController {
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
 
-    if (missingFields.length > 0) {
+    const serviceStatus = await this.getLatestServiceStatus();
+
+    if (!serviceStatus.is_active) {
+      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+    } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
     } else {
@@ -415,6 +469,12 @@ export default class DigitalPurchaseController {
       `createDigitalPurchase - Razorpay Keys : ${process.env.RAZORPAY_KEY_ID} - ${process.env.RAZORPAY_KEY_SECRET}`,
     );
 
+    const serviceStatus = await this.getLatestServiceStatus();
+
+    if (!serviceStatus.is_active) {
+      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      return res.status(responseData.status).json(responseData);
+    }
     if (missingFields.length > 0) {
       responseData = prepareJSONResponse(
         {},

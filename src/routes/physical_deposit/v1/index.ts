@@ -11,6 +11,7 @@ import VendorDetailsModel from '../../../models/vendorDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
 import OtpLogModel from '../../../models/otpLog';
 import DigitalHoldingModel from '../../../models/digitalHolding';
+import ServiceControlModel from '../../../models/serviceControl';
 
 import ControllerRoutes from './physical_deposit';
 
@@ -23,6 +24,7 @@ const VendorDetails = VendorDetailsModel(sequelize);
 const CustomerAddress = CustomerAddressModel(sequelize);
 const OtpLog = OtpLogModel(sequelize);
 const DigitalHolding = DigitalHoldingModel(sequelize);
+const ServiceControl = ServiceControlModel(sequelize);
 
 Users.associate({
   CustomerDetails,
@@ -50,6 +52,7 @@ const physicalDepositController = new PhysicalDepositController(
   CustomerAddress,
   OtpLog,
   DigitalHolding,
+  ServiceControl,
 );
 
 const physicalDepositControllerRoutes = ControllerRoutes(physicalDepositController);

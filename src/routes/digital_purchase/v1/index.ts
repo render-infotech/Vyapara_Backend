@@ -10,6 +10,8 @@ import DigitalHoldingModel from '../../../models/digitalHolding';
 import MaterialRateModel from '../../../models/materialRate';
 import TaxRateModel from '../../../models/taxRate';
 import ServiceFeeRateModel from '../../../models/serviceFeeRate';
+import ServiceControlModel from '../../../models/serviceControl';
+
 import ControllerRoutes from './digital_purchase';
 
 const Users = UsersModel(sequelize);
@@ -20,6 +22,7 @@ const DigitalHolding = DigitalHoldingModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
 const TaxRate = TaxRateModel(sequelize);
 const ServiceFeeRate = ServiceFeeRateModel(sequelize);
+const ServiceControl = ServiceControlModel(sequelize);
 
 Users.associate({
   CustomerDetails,
@@ -41,6 +44,7 @@ const digitalPurchaseController = new DigitalPurchaseController(
   TaxRate,
   ServiceFeeRate,
   DigitalHolding,
+  ServiceControl,
 );
 
 const digitalPurchaseControllerRoutes = ControllerRoutes(digitalPurchaseController);
