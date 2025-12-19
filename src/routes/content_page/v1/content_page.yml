@@ -1,0 +1,11 @@
+content_page:
+  handler: src/routes/content_page/v1/index.content_page
+  timeout: 300
+  memorySize: 300
+  events:
+    - http:
+        path: /v1/content-page
+        method: any
+    - http:
+        path: /v1/content-page/{proxy+}
+        method: any

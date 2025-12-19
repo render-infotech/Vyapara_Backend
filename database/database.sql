@@ -370,3 +370,22 @@ CREATE TABLE IF NOT EXISTS `physical_deposit_products` (
 ALTER TABLE `otp_logs`
 ADD COLUMN `ref_id` BIGINT DEFAULT NULL COMMENT 'Reference ID for linking OTP to a flow' AFTER `context`;
 
+-- Created new table for storing content pages - by Shubham
+CREATE TABLE IF NOT EXISTS `content_pages` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'ID of the page',
+  `page_name` VARCHAR(255) NOT NULL COMMENT 'Name of the page',
+  `page_details` LONGTEXT NOT NULL COMMENT 'Page details or content (may contain HTML)',
+  `page_type` VARCHAR(50) DEFAULT NULL COMMENT 'Defines which role/app this page belongs to',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT 'Status of the page (0 = inactive, 1 = active)',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT 'Soft delete flag (0 = not deleted, 1 = deleted)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation date',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update date',
+
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci
+COMMENT='Stores static/dynamic page content';
+
+
