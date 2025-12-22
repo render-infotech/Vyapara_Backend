@@ -20,6 +20,7 @@ import VendorDetailsModel from '../models/vendorDetails';
 import RiderDetailsModel from '../models/riderDetails';
 import ProductsModel from '../models/products';
 import DigitalPurchaseModel from '../models/digitalPurchase';
+import ServiceControlModel from '../models/serviceControl';
 import OtpLogModel from '../models/otpLog';
 import { singleImageUpload } from '../utils/s3uploads';
 // import { sendSms, generateNumericOtp, hashOtp } from '../utils/sms';
@@ -60,6 +61,9 @@ export default class PhysicalRedeemController {
   // @ts-ignore
   private otpLogModel: OtpLogModel;
 
+  // @ts-ignore
+  private serviceControlModel: ServiceControlModel;
+
   sequelize: any;
 
   constructor(
@@ -85,6 +89,8 @@ export default class PhysicalRedeemController {
     digitalPurchaseModel: DigitalPurchaseModel,
     // @ts-ignore
     otpLogModel: OtpLogModel,
+    // @ts-ignore
+    serviceControlModel: ServiceControlModel,
   ) {
     this.physicalRedeemModel = physicalRedeemModel;
     this.usersModel = usersModel;
@@ -97,6 +103,7 @@ export default class PhysicalRedeemController {
     this.productsModel = productsModel;
     this.digitalPurchaseModel = digitalPurchaseModel;
     this.otpLogModel = otpLogModel;
+    this.serviceControlModel = serviceControlModel;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -144,6 +151,49 @@ export default class PhysicalRedeemController {
     }
 
     return result;
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getLatestServiceStatus(service_key?: number) {
+    try {
+      const serviceWhere: any = {};
+
+      if (service_key) {
+        serviceWhere.service_key = service_key;
+      }
+
+      const serviceStatus = await this.serviceControlModel.findOne({
+        where: serviceWhere,
+        order: [['created_at', 'DESC']],
+      });
+
+      logger.info(`getLatestServiceStatus - Fetched service control data ${JSON.stringify(serviceStatus)}`);
+
+      if (!serviceStatus) {
+        return {
+          service_key,
+          is_enabled: 1,
+          is_active: true,
+          reason: null,
+        };
+      } else {
+        const isEnabled = Number(serviceStatus.is_enabled) === 1;
+        return {
+          service_key: serviceStatus.service_key,
+          is_enabled: serviceStatus.is_enabled,
+          is_active: isEnabled,
+          reason: serviceStatus.reason || null,
+        };
+      }
+    } catch (error) {
+      logger.error('getLatestServiceStatus - Error fetching service status.', error);
+      return {
+        service_key,
+        is_enabled: 0,
+        is_active: false,
+        reason: null,
+      };
+    }
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -230,6 +280,11 @@ export default class PhysicalRedeemController {
     let responseData: typeof prepareJSONResponse = {};
 
     try {
+      const serviceStatus = await this.getLatestServiceStatus();
+      if (!serviceStatus.is_active) {
+        responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+        return res.status(responseData.status).json(responseData);
+      }
       if (role_id !== predefinedRoles.User.id) {
         responseData = prepareJSONResponse({}, 'Not allowed for this role.', statusCodes.FORBIDDEN);
         return res.status(responseData.status).json(responseData);
@@ -309,6 +364,12 @@ export default class PhysicalRedeemController {
     );
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
+
+    const serviceStatus = await this.getLatestServiceStatus();
+    if (!serviceStatus.is_active) {
+      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      return res.status(responseData.status).json(responseData);
+    }
 
     if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;

@@ -13,6 +13,7 @@ import RiderDetailsModel from '../../../models/riderDetails';
 import ProductsModel from '../../../models/products';
 import DigitalPurchaseModel from '../../../models/digitalPurchase';
 import OtpLogModel from '../../../models/otpLog';
+import ServiceControlModel from '../../../models/serviceControl';
 
 import ControllerRoutes from './physical_redeem';
 
@@ -27,6 +28,7 @@ const RiderDetails = RiderDetailsModel(sequelize);
 const Products = ProductsModel(sequelize);
 const DigitalPurchase = DigitalPurchaseModel(sequelize);
 const OtpLog = OtpLogModel(sequelize);
+const ServiceControl = ServiceControlModel(sequelize);
 
 PhysicalRedeem.associate({ Users, CustomerDetails, CustomerAddress, VendorDetails });
 Users.associate({
@@ -55,6 +57,7 @@ const physicalRedeemController = new PhysicalRedeemController(
   Products,
   DigitalPurchase,
   OtpLog,
+  ServiceControl,
 );
 
 const physicalRedeemControllerRoutes = ControllerRoutes(physicalRedeemController);
