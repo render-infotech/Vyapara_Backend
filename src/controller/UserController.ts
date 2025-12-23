@@ -205,9 +205,20 @@ export default class UsersController {
 
               const otpText = `Your OTP for login verification is ${otpPass}. It is valid for 5 minutes. – VASIST PROVIDERE`;
 
-              const endPoint = `https://pgapi.vispl.in/fe/api/v1/send?username=${process.env.OTP_EXT_API_USERNAME}&password=${process.env.OTP_EXT_API_PASSWORD}&unicode=${process.env.OTP_EXT_API_UNICODE}&from=VYAPRE&to=${customerPhone}&text=${otpText}&dlt_tm_id=${process.env.OTP_EXT_API_DLT_TM_ID}&dltContentId=${process.env.OTP_EXT_API_DLT_CONTENT_ID}`;
+              const params = {
+                username: process.env.OTP_EXT_API_USERNAME,
+                password: process.env.OTP_EXT_API_PASSWORD,
+                unicode: process.env.OTP_EXT_API_UNICODE,
+                from: 'VYAPRE',
+                to: customerPhone,
+                text: otpText,
+                dlt_tm_id: process.env.OTP_EXT_API_DLT_TM_ID,
+                dltContentId: process.env.OTP_EXT_API_DLT_CONTENT_ID,
+              };
 
-              const otpSentExtAPIRes = await getRequest(endPoint, {}, {}, true);
+              const endPoint = 'https://pgapi.vispl.in/fe/api/v1/send';
+
+              const otpSentExtAPIRes = await getRequest(endPoint, params, {}, true);
 
               logger.info(
                 `loginUserStep1 - OTP sent using external API: Req and Res: ${JSON.stringify(customerPhone)} - ${JSON.stringify(otpSentExtAPIRes)}`,

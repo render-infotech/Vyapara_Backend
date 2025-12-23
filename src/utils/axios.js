@@ -25,7 +25,9 @@ const getRequest = async (url, params = {}, headers = {}, external = false) => {
       headers: finalHeaders,
     });
 
-    logger.info(`getRequest Response Data: ${JSON.stringify(response.data)}`);
+    logger.info(
+      `getRequest Response Data: URL: ${JSON.stringify(url)}${JSON.stringify(params)}${JSON.stringify(finalHeaders)} ${JSON.stringify(response.data)}`,
+    );
     return response.data;
   } catch (error) {
     logger.error(`getRequest Error: ${error.response ? error.response.data : error.message}`);
