@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_name` VARCHAR(50) DEFAULT NULL COMMENT 'The last name of the user',
   `profile_pic` TEXT DEFAULT NULL COMMENT 'The profile pic URL',
   `email` VARCHAR(255) NOT NULL UNIQUE COMMENT 'Email ID of the user',
-  `password` VARCHAR(255) NOT NULL COMMENT 'Password of the user',
+  `password` VARCHAR(255) DEFAULT NULL COMMENT 'Password of the user',
   `phone_country_code` VARCHAR(10) DEFAULT NULL COMMENT 'The phone country code (IN, US, etc)',
   `phone_code` VARCHAR(10) DEFAULT NULL COMMENT 'The phone code of the phone country',
-  `phone` VARCHAR(15) DEFAULT NULL COMMENT 'The phone number of the user',
+  `phone` VARCHAR(15) NOT NULL COMMENT 'The phone number of the user',
   `dob` VARCHAR(30) DEFAULT NULL COMMENT 'Date of birth of the user',
   `gender` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Gender of the user (1 = Male, 2 = Female, 3 = Others)',
   `role_id` BIGINT NOT NULL DEFAULT 10 COMMENT 'Role ID (1=Admin, 2=Vendor, 3=Rider, 10=End User, etc)',
@@ -401,5 +401,11 @@ CREATE TABLE IF NOT EXISTS `service_control` (
   PRIMARY KEY (`id`)
 ) COMMENT='Stores service control data';
 
+
+-- Alter user table - by Shubham
+ALTER TABLE users
+ADD COLUMN is_agreed TINYINT(1) NOT NULL DEFAULT 0
+COMMENT 'User agreement accepted (0 = No, 1 = Yes)'
+AFTER user_verified;
 
 

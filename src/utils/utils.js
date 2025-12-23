@@ -20,6 +20,17 @@ export const createValidator = (data) => {
           .split('_')
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
           .join(' ')}, `;
+        return;
+      }
+
+      if (key === 'phone') {
+        const phoneStr = String(value);
+        const phoneRegex = /^\d{10}$/;
+
+        if (!phoneRegex.test(phoneStr)) {
+          validationStatus = false;
+          validationMessage += 'Phone must be a valid 10 digit number, ';
+        }
       }
     });
   });

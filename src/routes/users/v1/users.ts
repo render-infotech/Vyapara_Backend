@@ -6,7 +6,8 @@ const router = express.Router();
 
 export default (usersController: UserController) => {
   router.post('/register', usersController.registerUser.bind(usersController));
-  router.post('/login', usersController.loginUser.bind(usersController));
+  router.post('/login-otp', usersController.loginUserStep1.bind(usersController));
+  router.post('/login', usersController.loginUserStep2.bind(usersController));
   router.get('/my-profile', Authentication(), usersController.myProfile.bind(usersController));
   router.post('/update-admin', Authentication(), usersController.updateAdminProfile.bind(usersController));
   router.post('/update-profile', Authentication(), usersController.updateProfile.bind(usersController));

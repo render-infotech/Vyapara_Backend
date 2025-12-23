@@ -9,7 +9,11 @@ import UsersModel from '../models/users';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
 import RiderDetailsModel from '../models/riderDetails';
+import OtpLogModel from '../models/otpLog';
 import { removeS3File, singleImageUpload } from '../utils/s3uploads';
+import { hashOtp } from '../utils/sms';
+import { getRequest } from '../utils/axios.js';
+import { Op } from 'sequelize';
 
 export default class UsersController {
   // @ts-ignore
@@ -27,6 +31,9 @@ export default class UsersController {
   // @ts-ignore
   private riderDetailsModel: RiderDetailsModel;
 
+  // @ts-ignore
+  private otpLogModel: OtpLogModel;
+
   constructor(
     // @ts-ignore
     usersModel: UsersModel,
@@ -38,26 +45,28 @@ export default class UsersController {
     vendorDetailsModel: VendorDetailsModel,
     // @ts-ignore
     riderDetailsModel: RiderDetailsModel,
+    // @ts-ignore
+    otpLogModel: OtpLogModel,
   ) {
     this.usersModel = usersModel;
     this.customerDetailsModel = customerDetailsModel;
     this.customerAddressModel = customerAddressModel;
     this.vendorDetailsModel = vendorDetailsModel;
     this.riderDetailsModel = riderDetailsModel;
+    this.otpLogModel = otpLogModel;
   }
 
-  async emailExists(email) {
+  async phoneExists(phone) {
     try {
       const user = await this.usersModel.findOne({
-        attributes: ['id', 'email'],
+        attributes: ['id', 'phone'],
         where: {
-          email,
-          is_deactivated: 0,
+          phone,
         },
       });
       return user;
     } catch (error) {
-      logger.error('Error emailExists in Email Exists.', error, email);
+      logger.error('Error phoneExists in Phone Exists.', error, phone);
       throw new SqlError(error);
     }
   }
@@ -87,61 +96,45 @@ export default class UsersController {
     const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
-      const validateBody = ['first_name', 'email', 'password', 'confirm_password', 'phone', 'is_agreed'];
+      const validateBody = ['first_name', 'email', 'phone', 'is_agreed'];
       const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
-        const { password, confirm_password } = requestBody;
-        if (password !== confirm_password) {
-          logger.info(
-            `registerUser Password and confirm password do not match Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-          );
-          responseData = prepareJSONResponse(
-            {},
-            'Password and confirm password do not match.',
-            statusCodes.BAD_REQUEST,
-          );
-        } else {
+        const { is_agreed } = requestBody;
+        if (is_agreed === 1) {
           // Check if this user already exists
-          const userExists = await this.emailExists(requestBody.email);
-          responseData = prepareJSONResponse({}, 'User with this email already exists', statusCodes.BAD_REQUEST);
+          const userExists = await this.phoneExists(requestBody.phone);
+          responseData = prepareJSONResponse({}, 'User with this phone already exists', statusCodes.BAD_REQUEST);
           if (!userExists) {
-            if (requestBody.password) {
-              requestBody.password = await bcrypt.hash(requestBody.password, 10);
-            }
             const newUser = await this.createUser({
               first_name: requestBody.first_name,
               last_name: requestBody.last_name,
               email: requestBody.email,
-              password: requestBody.password,
+              password: requestBody?.password || '',
               dob: requestBody.dob || null,
               gender: requestBody.gender || 1,
-              phone_country_code: requestBody.phone_country_code || 1,
-              phone_code: requestBody.phone_code || 1,
-              phone: requestBody.phone || 1,
+              phone_country_code: requestBody.phone_country_code || 'IN',
+              phone_code: requestBody.phone_code || '+91',
+              phone: requestBody.phone,
             });
 
-            const data = {
-              first_name: newUser.toJSON().first_name,
-              last_name: newUser.toJSON().last_name ?? '',
-              email: newUser.toJSON().email,
-              role_id: newUser.toJSON().role_id ?? 10,
-            };
-            const jwtData = {
-              userId: newUser.toJSON().id,
-              ...data,
-            };
-            const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
-            const dataForUser = { user: data, token, expiresIn: 365 };
-
             const newData = await this.createCustomer({
-              customer_id: jwtData.userId,
+              customer_id: newUser.toJSON().id,
             });
             logger.info(
               `registerUser - Added new entry in user table and customerDetails table:  ${JSON.stringify(newUser)} ,  ${JSON.stringify(newData)}`,
             );
-            responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
+            responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
           }
+        } else {
+          logger.info(
+            `registerUser User agreement not accepted Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+          );
+          responseData = prepareJSONResponse(
+            {},
+            'Please accept the terms and conditions to proceed.',
+            statusCodes.BAD_REQUEST,
+          );
         }
       }
     } catch (error) {
@@ -153,22 +146,33 @@ export default class UsersController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async loginUser(req: Request, res: Response) {
+  async loginUserStep1(req: Request, res: Response) {
     const requestBody = req.body;
     let responseData = prepareJSONResponse({}, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     try {
-      const validateBody = ['email', 'password'];
+      const validateBody = ['phone'];
       const { validationStatus, validationMessage } = createValidator(createFilterBody(requestBody, validateBody));
       responseData = prepareJSONResponse({}, validationMessage, statusCodes.BAD_REQUEST);
       if (validationStatus) {
         const user = await this.usersModel.findOne({
-          attributes: ['id', 'first_name', 'last_name', 'email', 'password', 'role_id', 'status', 'is_deactivated'],
+          attributes: [
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'phone_country_code',
+            'phone_code',
+            'role_id',
+            'status',
+            'is_deactivated',
+          ],
           where: {
-            email: requestBody.email,
+            phone: requestBody.phone,
             is_deactivated: 0,
           },
         });
-        responseData = prepareJSONResponse({}, 'Invalid email or password.', statusCodes.BAD_REQUEST);
+        responseData = prepareJSONResponse({}, 'Invalid phone', statusCodes.BAD_REQUEST);
         if (user) {
           if (user.is_deactivated) {
             responseData = prepareJSONResponse({}, 'User is deactivated.', statusCodes.BAD_REQUEST);
@@ -179,40 +183,141 @@ export default class UsersController {
               statusCodes.BAD_REQUEST,
             );
           } else {
-            const match = await bcrypt.compareSync(requestBody.password, user.password);
-            if (match) {
+            if (user.phone) {
+              // const otpPass = generateNumericOtp(4);
+              const otpPass = 1234;
+              const otpHash = hashOtp(otpPass.toString());
+              const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+              const otpLogRecord = await this.otpLogModel.create({
+                user_id: user?.id,
+                otp_hash: otpHash,
+                expires_at: expiresAt,
+                context: 'login',
+                attempts: 0,
+                is_used: false,
+                ref_id: user.phone,
+              });
+
+              logger.info(`loginUserStep1 - Added new entry in otp log table: ${JSON.stringify(otpLogRecord)}}`);
+
+              const customerPhone = user?.phone;
+
+              const otpText = `Your OTP for login verification is ${otpPass}. It is valid for 5 minutes. – VASIST PROVIDERE`;
+
+              const endPoint = `https://pgapi.vispl.in/fe/api/v1/send?username=${process.env.OTP_EXT_API_USERNAME}&password=${process.env.OTP_EXT_API_PASSWORD}&unicode=${process.env.OTP_EXT_API_UNICODE}&from=VYAPRE&to=${customerPhone}&text=${otpText}&dlt_tm_id=${process.env.OTP_EXT_API_DLT_TM_ID}&dltContentId=${process.env.OTP_EXT_API_DLT_CONTENT_ID}`;
+
+              const otpSentExtAPIRes = await getRequest(endPoint, {}, {}, true);
+
+              logger.info(
+                `loginUserStep1 - OTP sent using external API: Req and Res: ${JSON.stringify(customerPhone)} - ${JSON.stringify(otpSentExtAPIRes)}`,
+              );
+
+              if (otpSentExtAPIRes?.pdu === 2) {
+                responseData = prepareJSONResponse({}, 'OTP Sent', statusCodes.OK);
+              } else {
+                responseData = prepareJSONResponse(
+                  {},
+                  otpSentExtAPIRes?.description,
+                  statusCodes.INTERNAL_SERVER_ERROR,
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('loginUserStep1 - Error in User Login.', error);
+      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+    }
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async loginUserStep2(req: Request, res: Response) {
+    const requestBody = req.body;
+    const mandatoryFields = ['phone', 'otp'];
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+    let responseData: typeof prepareJSONResponse = {};
+    let message = 'Missing required fields';
+
+    if (missingFields.length > 0) {
+      message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const user = await this.usersModel.findOne({
+          attributes: [
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'phone_country_code',
+            'phone_code',
+            'role_id',
+            'status',
+            'is_deactivated',
+          ],
+          where: {
+            phone: requestBody.phone,
+            is_deactivated: 0,
+          },
+        });
+
+        if (user) {
+          if (user.is_deactivated) {
+            responseData = prepareJSONResponse({}, 'User is deactivated.', statusCodes.BAD_REQUEST);
+          } else if (!user.status) {
+            responseData = prepareJSONResponse(
+              {},
+              'Kindly contact admin for enabling the system access',
+              statusCodes.BAD_REQUEST,
+            );
+          } else {
+            const otpWhere: any = {
+              user_id: user?.id,
+              is_used: 0,
+              context: 'login',
+              ref_id: requestBody?.phone,
+              expires_at: {
+                [Op.gte]: new Date(),
+              },
+            };
+            const otpRecord = await this.otpLogModel.findOne({
+              where: otpWhere,
+              order: [['created_at', 'DESC']],
+            });
+            if (!otpRecord) {
+              responseData = prepareJSONResponse({}, 'No OTP data found for login.', statusCodes.BAD_REQUEST);
+            } else if (otpRecord.attempts >= 5) {
+              responseData = prepareJSONResponse(
+                {},
+                'Too many failed attempts, try again after 5 minutes.',
+                statusCodes.BAD_REQUEST,
+              );
+            } else {
+              const hashedInputOtp = hashOtp(requestBody?.otp.toString());
+              if (otpRecord.otp_hash !== hashedInputOtp) {
+                otpRecord.attempts += 1;
+                await otpRecord.save();
+                responseData = prepareJSONResponse({}, 'Invalid OTP.', statusCodes.BAD_REQUEST);
+              }
+              otpRecord.is_used = true;
+              await otpRecord.save();
+
+              logger.info(`loginUserStep2 - Successfully verified the OTP: ${JSON.stringify(otpRecord)} }`);
+
               const data = {
                 first_name: user.toJSON().first_name,
                 last_name: user.toJSON().last_name ?? '',
                 email: user.toJSON().email,
+                phone: user.toJSON().phone,
+                phone_country_code: user.toJSON().phone_country_code,
+                phone_code: user.toJSON().phone_code,
                 role_id: user.toJSON().role_id ?? 10,
               };
-              setImmediate(async () => {
-                try {
-                  // let location = {};
-                  // if (requestBody.ip && requestBody.ip !== '::1') {
-                  //   location = await getLocationFromIP(requestBody.ip);
-                  //   if (!Array.isArray(location) && typeof location === 'object') {
-                  //     location = JSON.stringify(location);
-                  //   }
-                  //   if (Array.isArray(location)) {
-                  //     location = JSON.stringify(location);
-                  //   }
-                  // }
-                  // const userLog = await this.loginAuditLogsModel.create({
-                  //   user_id: user.id,
-                  //   user_name: `${data.first_name} ${data.last_name}`,
-                  //   ip_address: requestBody.ip,
-                  //   user_agent: req.headers['user-agent'] ?? null,
-                  //   location,
-                  // });
-                  // logger.info(
-                  //   `Login Audit log status for user ${user.id} with ip ${requestBody.ip} - ${JSON.stringify(userLog)}`,
-                  // );
-                } catch (error) {
-                  logger.info(`Login Audit log failed for user ${user.id} with ip ${requestBody.ip} - ${error}`);
-                }
-              });
+
               const jwtData = {
                 userId: user.toJSON().id,
                 ...data,
@@ -220,17 +325,17 @@ export default class UsersController {
               const token = jwt.sign(jwtData, process.env.JWT_PRIVKEY, { expiresIn: '365 days' });
               const dataForUser = { user: data, token, expiresIn: 365 };
               responseData = prepareJSONResponse(dataForUser, 'Success', statusCodes.OK);
-              logger.info(
-                `loginUser User Logged in successfully, Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
-              );
             }
           }
         }
+      } catch (error) {
+        logger.error('loginUserStep2 - Error in OTP verifying by vendor.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
       }
-    } catch (error) {
-      logger.error('loginUser - Error in User Login.', error);
-      responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
+    logger.info(
+      `loginUserStep2 - OTP Verification Step-1 Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`,
+    );
     return res.status(responseData.status).json(responseData);
   }
 
@@ -440,7 +545,7 @@ export default class UsersController {
     // @ts-ignore
     const { userId } = req.user;
     const requestBody = req.body;
-    const mandatoryFields = ['first_name', 'email'];
+    const mandatoryFields = ['first_name', 'phone'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -454,10 +559,22 @@ export default class UsersController {
           role_id: predefinedRoles.User.id,
         };
         const recordExists = await this.usersModel.findOne({
-          attributes: ['id', 'first_name', 'last_name', 'email', 'is_deactivated', 'status', 'profile_pic'],
+          attributes: [
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'is_deactivated',
+            'status',
+            'profile_pic',
+            'phone',
+            'phone_country_code',
+            'phone_code',
+          ],
           where: userWhere,
         });
-        responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+
+        responseData = prepareJSONResponse({}, 'Invalid Phone.', statusCodes.BAD_REQUEST);
         if (recordExists) {
           if (!recordExists.is_deactivated) {
             if (!recordExists.status) {
@@ -476,23 +593,37 @@ export default class UsersController {
                   logger.error('updateProfile - Error deleting old profile picture', error);
                 }
               }
+              if (!recordExists.status) {
+                responseData = prepareJSONResponse(
+                  {},
+                  'Kindly contact admin for enabling the system access',
+                  statusCodes.BAD_REQUEST,
+                );
+              }
 
-              const newData = await this.usersModel.update(
-                {
-                  first_name: requestBody.first_name,
-                  last_name: requestBody.last_name,
-                  email: requestBody.email,
-                  dob: requestBody.dob || recordExists?.dob,
-                  gender: requestBody.gender || recordExists?.gender,
-                  phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
-                  phone_code: requestBody.phone_code || recordExists?.phone_code,
-                  phone: requestBody.phone || recordExists?.phone,
-                  profile_pic: newProfilePic,
-                },
-                { where: { id: userId, role_id: predefinedRoles?.User?.id } },
-              );
-              logger.info(`updateProfile - Updated the entry: ${JSON.stringify(newData)} }`);
-              responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+              const phoneCheck = await this.phoneExists(requestBody.phone);
+
+              if (phoneCheck && phoneCheck?.id !== recordExists?.id) {
+                logger.info(`updateProfile - Provided new phone already exists: ${JSON.stringify(phoneCheck)} }`);
+                responseData = prepareJSONResponse({}, 'User with this phone already exists', statusCodes.BAD_REQUEST);
+              } else {
+                const newData = await this.usersModel.update(
+                  {
+                    first_name: requestBody.first_name,
+                    last_name: requestBody.last_name,
+                    email: requestBody.email,
+                    dob: requestBody.dob || recordExists?.dob,
+                    gender: requestBody.gender || recordExists?.gender,
+                    phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
+                    phone_code: requestBody.phone_code || recordExists?.phone_code,
+                    phone: requestBody.phone || recordExists?.phone,
+                    profile_pic: newProfilePic,
+                  },
+                  { where: { id: userId, role_id: predefinedRoles?.User?.id } },
+                );
+                logger.info(`updateProfile - Updated the entry: ${JSON.stringify(newData)} }`);
+                responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+              }
             }
           }
         }
@@ -528,7 +659,7 @@ export default class UsersController {
     // @ts-ignore
     const { userId, role_id } = req.user;
     const requestBody = req.body;
-    const mandatoryFields = ['first_name', 'email'];
+    const mandatoryFields = ['first_name', 'phone'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -549,10 +680,21 @@ export default class UsersController {
             role_id: predefinedRoles.Admin.id,
           };
           const recordExists = await this.usersModel.findOne({
-            attributes: ['id', 'first_name', 'last_name', 'email', 'is_deactivated', 'status', 'profile_pic'],
+            attributes: [
+              'id',
+              'first_name',
+              'last_name',
+              'email',
+              'is_deactivated',
+              'status',
+              'profile_pic',
+              'phone',
+              'phone_country_code',
+              'phone_code',
+            ],
             where: userWhere,
           });
-          responseData = prepareJSONResponse({}, 'Invalid email.', statusCodes.BAD_REQUEST);
+          responseData = prepareJSONResponse({}, 'Invalid phone.', statusCodes.BAD_REQUEST);
           if (recordExists) {
             if (!recordExists.is_deactivated) {
               if (!recordExists.status) {
@@ -572,22 +714,33 @@ export default class UsersController {
                   }
                 }
 
-                const newData = await this.usersModel.update(
-                  {
-                    first_name: requestBody.first_name,
-                    last_name: requestBody.last_name,
-                    email: requestBody.email,
-                    dob: requestBody.dob || recordExists?.dob,
-                    gender: requestBody.gender || recordExists?.gender,
-                    phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
-                    phone_code: requestBody.phone_code || recordExists?.phone_code,
-                    phone: requestBody.phone || recordExists?.phone,
-                    profile_pic: newProfilePic,
-                  },
-                  { where: { id: userId, role_id: predefinedRoles?.Admin?.id } },
-                );
-                logger.info(`updateAdminProfile - Updated the entry: ${JSON.stringify(newData)} }`);
-                responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+                const phoneCheck = await this.phoneExists(requestBody.phone);
+
+                if (phoneCheck && phoneCheck?.id !== recordExists?.id) {
+                  logger.info(`updateProfile - Provided new phone already exists: ${JSON.stringify(phoneCheck)} }`);
+                  responseData = prepareJSONResponse(
+                    {},
+                    'User with this phone already exists',
+                    statusCodes.BAD_REQUEST,
+                  );
+                } else {
+                  const newData = await this.usersModel.update(
+                    {
+                      first_name: requestBody.first_name,
+                      last_name: requestBody.last_name,
+                      email: requestBody.email,
+                      dob: requestBody.dob || recordExists?.dob,
+                      gender: requestBody.gender || recordExists?.gender,
+                      phone_country_code: requestBody.phone_country_code || recordExists?.phone_country_code,
+                      phone_code: requestBody.phone_code || recordExists?.phone_code,
+                      phone: requestBody.phone || recordExists?.phone,
+                      profile_pic: newProfilePic,
+                    },
+                    { where: { id: userId, role_id: predefinedRoles?.Admin?.id } },
+                  );
+                  logger.info(`updateAdminProfile - Updated the entry: ${JSON.stringify(newData)} }`);
+                  responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
+                }
               }
             }
           }

@@ -16,7 +16,7 @@ interface UserAttributes {
   last_name?: string;
   profile_pic?: string;
   email: string;
-  password: string;
+  password?: string;
   phone_country_code?: string;
   phone_code?: string;
   phone?: string;
@@ -27,6 +27,7 @@ interface UserAttributes {
   two_factor_enabled: boolean;
   is_deactivated: number;
   user_verified?: number;
+  is_agreed: number;
   password_change_date: Date;
   created_at: Date;
   updated_at: Date;
@@ -49,7 +50,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
 
   public email!: string;
 
-  public password!: string;
+  public password?: string;
 
   public phone_country_code?: string;
 
@@ -70,6 +71,8 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public is_deactivated!: number;
 
   public user_verified!: number;
+
+  public is_agreed!: number;
 
   public password_change_date!: Date;
 
@@ -205,7 +208,8 @@ const UserModel = (sequelize: Sequelize): typeof User => {
       },
       password: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: true,
+        defaultValue: null,
         comment: 'Password of the user',
       },
       phone_country_code: {
@@ -222,9 +226,9 @@ const UserModel = (sequelize: Sequelize): typeof User => {
       },
       phone: {
         type: DataTypes.STRING(15),
-        allowNull: true,
+        allowNull: false,
+        unique: true,
         comment: 'The phone number of the user',
-        defaultValue: null,
       },
       dob: {
         type: DataTypes.STRING(30),
@@ -266,6 +270,12 @@ const UserModel = (sequelize: Sequelize): typeof User => {
         allowNull: true,
         defaultValue: 0,
         comment: 'Has the user KYC verified',
+      },
+      is_agreed: {
+        type: DataTypes.TINYINT,
+        allowNull: false,
+        defaultValue: 0,
+        comment: 'User agreement accepted (0 = No, 1 = Yes)',
       },
       password_change_date: {
         type: DataTypes.DATE,

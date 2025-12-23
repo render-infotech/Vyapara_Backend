@@ -91,6 +91,11 @@ custom:
     # TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
     # TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
     # TWILIO_PHONE_NUMBER: ${env:TWILIO_PHONE_NUMBER}
+    OTP_EXT_API_USERNAME: ${env:OTP_EXT_API_USERNAME}
+    OTP_EXT_API_PASSWORD: ${env:OTP_EXT_API_PASSWORD}
+    OTP_EXT_API_UNICODE: ${env:OTP_EXT_API_UNICODE}
+    OTP_EXT_API_DLT_TM_ID: ${env:OTP_EXT_API_DLT_TM_ID}
+    OTP_EXT_API_DLT_CONTENT_ID: ${env:OTP_EXT_API_DLT_CONTENT_ID}
   serverless-offline:
     noPrependStageInUrl: true
     # For the custom port which is 3001 remove this for default port "3000"

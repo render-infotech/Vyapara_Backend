@@ -251,7 +251,7 @@ export default class PhysicalDepositController {
   // eslint-disable-next-line class-methods-use-this
   async checkUserKYCVerifiction(req: Request, res: Response) {
     const requestBody = req.body;
-    const mandatoryFields = ['email', 'vendor_id'];
+    const mandatoryFields = ['phone', 'vendor_id'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
     let responseData: typeof prepareJSONResponse = {};
     let message = 'Missing required fields';
@@ -266,7 +266,7 @@ export default class PhysicalDepositController {
     } else {
       try {
         const userWhere: any = {
-          email: requestBody.email,
+          phone: requestBody.phone,
           is_deactivated: 0,
           status: 1,
         };

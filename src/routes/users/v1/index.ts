@@ -8,6 +8,8 @@ import CustomerAddressModel from '../../../models/customerAddress';
 import VendorDetailsModel from '../../../models/vendorDetails';
 import RiderDetailsModel from '../../../models/riderDetails';
 import DigitalPurchaseModel from '../../../models/digitalPurchase';
+import OtpLogModel from '../../../models/otpLog';
+
 import ControllerRoutes from './users';
 
 const Users = UsersModel(sequelize);
@@ -16,6 +18,7 @@ const CustomerAddress = CustomerAddressModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
 const RiderDetails = RiderDetailsModel(sequelize);
 const DigitalPurchase = DigitalPurchaseModel(sequelize);
+const OtpLog = OtpLogModel(sequelize);
 
 Users.associate({
   CustomerDetails,
@@ -30,7 +33,7 @@ VendorDetails.associate({ Users });
 RiderDetails.associate({ Users });
 DigitalPurchase.associate({ Users, CustomerDetails });
 
-const userController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails, RiderDetails);
+const userController = new UserController(Users, CustomerDetails, CustomerAddress, VendorDetails, RiderDetails, OtpLog);
 
 const userControllerRoutes = ControllerRoutes(userController);
 

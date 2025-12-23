@@ -4,8 +4,6 @@ import logger from '../utils/logger.js';
 import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
 import RiderDetailsModel from '../models/riderDetails';
-import { Op } from 'sequelize';
-import bcrypt from 'bcryptjs';
 
 export default class RiderController {
   // @ts-ignore
@@ -37,8 +35,8 @@ export default class RiderController {
         return res.status(responseData.status).json(responseData);
       }
 
-      const { first_name, last_name, email, phone, password } = requestBody;
-      const mandatoryFields = ['first_name', 'email', 'phone', 'password'];
+      const { first_name, last_name, email, phone } = requestBody;
+      const mandatoryFields = ['first_name', 'email', 'phone'];
       const missingFields = mandatoryFields.filter(
         (field) => requestBody[field] === undefined || requestBody[field] === null || requestBody[field] === '',
       );
@@ -55,27 +53,21 @@ export default class RiderController {
       // Check if user already exists
       const existingUser = await this.usersModel.findOne({
         where: {
-          [Op.or]: [{ email }, { phone }],
+          phone,
         },
       });
 
       if (existingUser) {
-        responseData = prepareJSONResponse(
-          {},
-          'User with this email or phone already exists.',
-          statusCodes.BAD_REQUEST,
-        );
+        responseData = prepareJSONResponse({}, 'User with this phone no already exists.', statusCodes.BAD_REQUEST);
         return res.status(responseData.status).json(responseData);
       }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
 
       const newUser = await this.usersModel.create({
         first_name,
         last_name,
         email,
         phone,
-        password: hashedPassword,
+        password: '',
         role_id: predefinedRoles.Rider.id,
         status: 1,
         is_deactivated: 0,

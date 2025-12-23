@@ -1,10 +1,9 @@
-import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
 import { predefinedMaterials, predefinedRoles, statusCodes } from '../utils/constants';
 import logger from '../utils/logger.js';
 import SqlError from '../errors/sqlError';
-import { prepareJSONResponse, generatePassword } from '../utils/utils';
+import { prepareJSONResponse } from '../utils/utils';
 import UsersModel from '../models/users';
 import VendorDetailsModel from '../models/vendorDetails';
 import CustomerDetailsModel from '../models/customerDetails';
@@ -33,17 +32,17 @@ export default class VendorsController {
     this.customerDetailsModel = customerDetailsModel;
   }
 
-  async emailExists(email) {
+  async phoneExists(phone) {
     try {
       const user = await this.usersModel.findOne({
-        attributes: ['id', 'email', 'is_deactivated'],
+        attributes: ['id', 'phone'],
         where: {
-          email,
+          phone,
         },
       });
       return user;
     } catch (error) {
-      logger.error('Error emailExists in Email Exists.', error, email);
+      logger.error('Error phoneExists in Phone Exists.', error, phone);
       throw new SqlError(error);
     }
   }
@@ -239,34 +238,29 @@ export default class VendorsController {
     } else {
       try {
         // Check if this user already exists
-        const userExists = await this.emailExists(requestBody.email);
+        const userExists = await this.phoneExists(requestBody.phone);
+
         if (userExists) {
-          responseData = prepareJSONResponse({}, 'User with this email already exists', statusCodes.BAD_REQUEST);
-          logger.info(`registerVendor: User with email ${requestBody.email} already exists`);
+          responseData = prepareJSONResponse({}, 'User with this phone already exists', statusCodes.BAD_REQUEST);
+          logger.info(`registerVendor: User with phone ${requestBody.phone} already exists`);
         } else {
-          const generatedPassword = generatePassword();
-
-          logger.info(`registerVendor Password: ${JSON.stringify(requestBody)} - ${generatedPassword}`);
-
-          requestBody.password = await bcrypt.hash(generatedPassword, 10);
-
           const newUser = await this.createUser({
             first_name: requestBody.first_name,
             last_name: requestBody.last_name || '',
             email: requestBody.email,
-            password: requestBody.password,
+            password: requestBody?.password || '',
             dob: requestBody.dob || null,
             gender: requestBody.gender || 1,
-            phone_country_code: requestBody?.phone_country_code || '',
-            phone_code: requestBody?.phone_code || '',
-            phone: requestBody?.phone || '',
+            phone_country_code: requestBody?.phone_country_code,
+            phone_code: requestBody?.phone_code,
+            phone: requestBody.phone,
             role_id: predefinedRoles?.Vendor?.id,
             profile_pic: requestBody.profile_pic,
           });
 
           if (!newUser) {
-            logger.info(`registerVendor: Failed to create user for email ${requestBody.email}`);
-            throw new Error(`User creation failed for ${requestBody.email}`);
+            logger.info(`registerVendor: Failed to create user for phone ${requestBody.phone}`);
+            throw new Error(`User creation failed for ${requestBody.phone}`);
           }
 
           const vendorFields = {};

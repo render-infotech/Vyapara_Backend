@@ -155,6 +155,9 @@ export default class CustomersController {
       if (requestBody.name) {
         userWhere.first_name = { [Op.like]: `%${requestBody.name}%` };
       }
+      if (requestBody.phone) {
+        userWhere.phone = { [Op.like]: `%${requestBody.phone}%` };
+      }
       if (requestBody.email) {
         userWhere.email = { [Op.like]: `%${requestBody.email}%` };
       }
@@ -212,9 +215,9 @@ export default class CustomersController {
               last_name: customer?.user?.last_name || '',
               profile_pic: customer?.user?.profile_pic || '',
               email: customer?.user?.email || '',
-              phone_country_code: customer?.user?.phone_country_code || '',
-              phone_code: customer?.user?.phone_code || '',
-              phone: customer?.user?.phone || '',
+              phone_country_code: customer?.user?.phone_country_code,
+              phone_code: customer?.user?.phone_code,
+              phone: customer?.user?.phone,
               gender: customer?.user?.gender || 1,
               dob: customer?.user?.dob || '',
               two_factor_enabled: customer?.user?.two_factor_enabled,

@@ -15,15 +15,14 @@ const getInternalAuthorisationHeaders = () => ({
   Authorization: `Bearer ${process.env.INTERNAL_KEY}` || '',
 });
 
-const getRequest = async (url, params = {}, headers = {}) => {
+const getRequest = async (url, params = {}, headers = {}, external = false) => {
   const requestHeader = getInternalAuthorisationHeaders();
   try {
+    const finalHeaders = external ? { ...headers } : { ...headers, ...requestHeader };
+
     const response = await axios.get(url, {
       params,
-      headers: {
-        ...headers,
-        ...requestHeader,
-      },
+      headers: finalHeaders,
     });
 
     logger.info(`getRequest Response Data: ${JSON.stringify(response.data)}`);
