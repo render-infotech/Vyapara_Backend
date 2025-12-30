@@ -554,7 +554,7 @@ export default class UsersController {
       logger.error('Error in uploading image for updateProfile', error);
     }
     // @ts-ignore
-    const { userId } = req.user;
+    const { userId, role_id } = req.user;
     const requestBody = req.body;
     const mandatoryFields = ['first_name', 'phone'];
     const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
@@ -567,7 +567,7 @@ export default class UsersController {
       try {
         const userWhere: any = {
           id: userId,
-          role_id: predefinedRoles.User.id,
+          role_id: role_id,
         };
         const recordExists = await this.usersModel.findOne({
           attributes: [

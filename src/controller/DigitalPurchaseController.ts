@@ -352,7 +352,11 @@ export default class DigitalPurchaseController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
@@ -472,7 +476,11 @@ export default class DigitalPurchaseController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
       return res.status(responseData.status).json(responseData);
     }
     if (missingFields.length > 0) {

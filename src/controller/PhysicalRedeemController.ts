@@ -282,7 +282,11 @@ export default class PhysicalRedeemController {
     try {
       const serviceStatus = await this.getLatestServiceStatus();
       if (!serviceStatus.is_active) {
-        responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+        responseData = prepareJSONResponse(
+          {},
+          'Service is under maintenance and will resume shortly.',
+          statusCodes.FORBIDDEN,
+        );
         return res.status(responseData.status).json(responseData);
       }
       if (role_id !== predefinedRoles.User.id) {
@@ -367,7 +371,11 @@ export default class PhysicalRedeemController {
 
     const serviceStatus = await this.getLatestServiceStatus();
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
       return res.status(responseData.status).json(responseData);
     }
 

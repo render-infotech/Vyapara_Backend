@@ -259,7 +259,11 @@ export default class PhysicalDepositController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
@@ -380,7 +384,11 @@ export default class PhysicalDepositController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
@@ -521,7 +529,11 @@ export default class PhysicalDepositController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
@@ -634,7 +646,11 @@ export default class PhysicalDepositController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
@@ -761,7 +777,11 @@ export default class PhysicalDepositController {
     const serviceStatus = await this.getLatestServiceStatus();
 
     if (!serviceStatus.is_active) {
-      responseData = prepareJSONResponse({}, 'Services deactivated.', statusCodes.FORBIDDEN);
+      responseData = prepareJSONResponse(
+        {},
+        'Service is under maintenance and will resume shortly.',
+        statusCodes.FORBIDDEN,
+      );
     } else if (missingFields.length > 0) {
       message = `Missing required fields: ${missingFields.join(', ')}`;
       responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
