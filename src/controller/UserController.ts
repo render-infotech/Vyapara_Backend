@@ -630,7 +630,7 @@ export default class UsersController {
                     phone: requestBody.phone || recordExists?.phone,
                     profile_pic: newProfilePic,
                   },
-                  { where: { id: userId, role_id: predefinedRoles?.User?.id } },
+                  { where: { id: userId, role_id: role_id } },
                 );
                 logger.info(`updateProfile - Updated the entry: ${JSON.stringify(newData)} }`);
                 responseData = prepareJSONResponse({}, 'Success', statusCodes.OK);
