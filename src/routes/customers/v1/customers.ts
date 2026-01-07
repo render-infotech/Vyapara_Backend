@@ -15,7 +15,7 @@ export default (customersController: CustomerController) => {
   router.post('/address/delete', Authentication(), customersController.deleteCustomerAddress.bind(customersController));
   router.post('/enable-login', Authentication(), customersController.reactivateCustomer.bind(customersController));
   router.post('/disable-login', Authentication(), customersController.deactivateCustomer.bind(customersController));
-  router.post('/delete', Authentication(), customersController.deleteCustomer.bind(customersController));
+  router.post('/delete', Obsolete(), customersController.deleteCustomer.bind(customersController));
   router.get('/summary', Authentication(), customersController.getCustomerSummary.bind(customersController));
   return router;
 };

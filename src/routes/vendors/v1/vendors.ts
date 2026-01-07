@@ -27,6 +27,6 @@ export default (vendorsController: VendorController) => {
   );
   router.post('/enable-login', Authentication(), vendorsController.reactivateVendor.bind(vendorsController));
   router.post('/disable-login', Authentication(), vendorsController.deactivateVendor.bind(vendorsController));
-  router.post('/delete', Authentication(), vendorsController.deleteVendor.bind(vendorsController));
+  router.post('/delete', Obsolete(), vendorsController.deleteVendor.bind(vendorsController));
   return router;
 };

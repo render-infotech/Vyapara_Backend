@@ -222,7 +222,7 @@ export default class RiderController {
       if (last_name) userRecord.last_name = last_name;
       if (phone) userRecord.phone = phone;
       if (status !== undefined) {
-        userRecord.status = status;
+        userRecord.is_deactivated = status;
         riderDetail.status = status;
         await riderDetail.save();
       }
@@ -238,7 +238,7 @@ export default class RiderController {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async deleteRider(req: Request, res: Response) {
+  async deactivateRider(req: Request, res: Response) {
     // @ts-ignore
     const { userId, role_id } = req.user;
     const { id } = req.params;
@@ -269,7 +269,6 @@ export default class RiderController {
       // Soft delete (deactivate)
       const userRecord = await this.usersModel.findOne({ where: { id } });
       if (userRecord) {
-        userRecord.status = 0;
         userRecord.is_deactivated = 1;
         await userRecord.save();
       }
@@ -279,7 +278,7 @@ export default class RiderController {
 
       responseData = prepareJSONResponse({}, 'Rider deactivated successfully.', statusCodes.OK);
     } catch (error) {
-      logger.error('deleteRider - Error deleting rider.', error);
+      logger.error('deactivateRider - Error deleting rider.', error);
       responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
     }
     return res.status(responseData.status).json(responseData);

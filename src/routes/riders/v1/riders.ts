@@ -9,6 +9,6 @@ export default (riderController: RiderController) => {
   router.get('/', Authentication(), riderController.listRiders.bind(riderController));
   router.get('/all', Authentication(), riderController.listAllRiders.bind(riderController));
   router.put('/:id', Authentication(), riderController.updateRider.bind(riderController));
-  router.delete('/:id', Authentication(), riderController.deleteRider.bind(riderController));
+  router.delete('/:id', Authentication(), riderController.deactivateRider.bind(riderController));
   return router;
 };

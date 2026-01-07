@@ -230,6 +230,7 @@ const CustomerAddressModel = (sequelize: Sequelize): typeof CustomerAddress => {
     },
     {
       sequelize,
+      modelName: 'CustomerAddress',
       freezeTableName: true,
       tableName: 'customer_address',
       comment: 'Customer address table',

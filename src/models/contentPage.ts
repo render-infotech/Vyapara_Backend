@@ -83,6 +83,7 @@ const ContentPageModel = (sequelize: Sequelize): typeof ContentPage => {
     },
     {
       sequelize,
+      modelName: 'ContentPage',
       tableName: 'content_pages',
       comment: 'Stores static/dynamic page content',
       timestamps: false,

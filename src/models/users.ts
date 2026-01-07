@@ -23,7 +23,7 @@ interface UserAttributes {
   dob?: string;
   gender?: number; //  1 - Male (default), 2 - Female, 3 - Others
   role_id: number; // 1 = Admin, 2 = Vendor, 3 = Rider, 10 = End User (default)
-  status: number;
+  status: number; // soft delete of the entry 1 = Active, 0 = delete
   two_factor_enabled: boolean;
   is_deactivated: number;
   user_verified?: number;
@@ -251,7 +251,7 @@ const UserModel = (sequelize: Sequelize): typeof User => {
         type: DataTypes.TINYINT,
         allowNull: false,
         defaultValue: 1,
-        comment: 'Is the user Active or Not',
+        comment: 'Soft delete of the entry 1 = Active, 0 = delete',
       },
       two_factor_enabled: {
         type: DataTypes.BOOLEAN,

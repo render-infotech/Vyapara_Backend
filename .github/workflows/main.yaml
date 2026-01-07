@@ -37,11 +37,11 @@ env:
   MAIN_APP_URL: https://www.vyapara.com
   SES_REGION: ${{ secrets.SES_REGION}}
   # INTERNAL_KEY:  ${{ secrets.INTERNAL_KEY }}
-  # EMAIL_HOST:  ${{ secrets.EMAIL_HOST }}
-  # EMAIL_PORT:  ${{ secrets.EMAIL_PORT }}
-  # EMAIL_SSL:  ${{ secrets.EMAIL_SSL }}
-  # EMAIL_USER:  ${{ secrets.EMAIL_USER }}
-  # EMAIL_PASSWORD:  ${{ secrets.EMAIL_PASSWORD }}
+  EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+  EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+  EMAIL_SSL: ${{ secrets.EMAIL_SSL }}
+  EMAIL_USER: ${{ secrets.EMAIL_USER }}
+  EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
   # TWILIO_ACCOUNT_SID:  ${{ secrets.TWILIO_ACCOUNT_SID }}
   # TWILIO_AUTH_TOKEN:  ${{ secrets.TWILIO_AUTH_TOKEN }}
   # TWILIO_PHONE_NUMBER:  ${{ secrets.TWILIO_PHONE_NUMBER }}
