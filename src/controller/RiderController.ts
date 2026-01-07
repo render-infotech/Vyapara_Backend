@@ -117,7 +117,7 @@ export default class RiderController {
           {
             model: this.usersModel,
             as: 'rider',
-            attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'status'],
+            attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'is_deactivated'],
           },
           {
             model: this.usersModel,
@@ -161,7 +161,7 @@ export default class RiderController {
           {
             model: this.usersModel,
             as: 'rider',
-            attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'status'],
+            attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'is_deactivated'],
           },
           {
             model: this.usersModel,
@@ -222,7 +222,7 @@ export default class RiderController {
       if (last_name) userRecord.last_name = last_name;
       if (phone) userRecord.phone = phone;
       if (status !== undefined) {
-        userRecord.is_deactivated = status;
+        userRecord.is_deactivated = status === 0 ? 1 : 0;
         riderDetail.status = status;
         await riderDetail.save();
       }
