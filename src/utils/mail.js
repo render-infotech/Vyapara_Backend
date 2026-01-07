@@ -14,9 +14,9 @@ const mailConfig = {
 const transporter = nodemailer.createTransport(mailConfig);
 
 // replace domainname with domain name
-const DEFAULT_SENDER_EMAIL = 'admin@gmail.com';
+const DEFAULT_SENDER_EMAIL = 'noreply@vyapare.com';
 
-export const DEVRECIPIENT = 'dev@domainname.com';
+export const DEVRECIPIENT = 'support@vyapare.com';
 
 /**
  * @category Utility

@@ -15,7 +15,7 @@ import ServiceControlModel from '../models/serviceControl';
 import { sendSms, hashOtp } from '../utils/sms';
 import { Op } from 'sequelize';
 import { physicalDepositSummary } from '../utils/emails/physical_deposit_summary.js';
-// import { sendEmail } from '../utils/mail';
+import { sendEmail } from '../utils/mail';
 
 export default class PhysicalDepositController {
   // @ts-ignore
@@ -737,13 +737,13 @@ export default class PhysicalDepositController {
 
             const emailBody = physicalDepositSummary(fullName, otp, depositSummary, depositRecord?.depositProducts);
 
-            // const emailStatus = await sendEmail(
-            //   recordExists?.email,
-            //   emailBody,
-            //   `Vyapara - Physical Deposit - ${depositRecord?.deposit_code}`,
-            // );
+            const emailStatus = await sendEmail(
+              recordExists?.email,
+              emailBody,
+              `Vyapara - Physical Deposit - ${depositRecord?.deposit_code}`,
+            );
             logger.info(
-              `summaryPhysicalDeposit Summary mail Status: ${recordExists?.email} ${JSON.stringify(emailBody)}`,
+              `summaryPhysicalDeposit Summary mail Status: ${recordExists?.email} ${JSON.stringify(emailStatus)}`,
             );
 
             await depositRecord.update({
