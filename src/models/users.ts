@@ -4,7 +4,7 @@ import CustomerAddress from './customerAddress';
 import VendorDetails from './vendorDetails';
 import RiderDetails from './riderDetails';
 import DigitalPurchase from './digitalPurchase';
-import DigitalHolding from './digitalHolding';
+import DigitalHoldings from './digitalHoldings';
 import PhysicalRedeem from './physicalRedeem';
 import PhysicalDeposit from './physicalDeposit';
 
@@ -101,7 +101,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
     digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
-    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
+    digitalHoldings: Association<DigitalHoldings, InstanceType<typeof DigitalHoldings>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;

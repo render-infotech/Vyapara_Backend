@@ -6,7 +6,7 @@ import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
 import DigitalPurchaseModel from '../../../models/digitalPurchase';
-import DigitalHoldingModel from '../../../models/digitalHolding';
+import DigitalHoldingsModel from '../../../models/digitalHoldings';
 import MaterialRateModel from '../../../models/materialRate';
 import TaxRateModel from '../../../models/taxRate';
 import ServiceFeeRateModel from '../../../models/serviceFeeRate';
@@ -17,7 +17,7 @@ const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
 const CustomerAddress = CustomerAddressModel(sequelize);
 const DigitalPurchase = DigitalPurchaseModel(sequelize);
-const DigitalHolding = DigitalHoldingModel(sequelize);
+const DigitalHoldings = DigitalHoldingsModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
 const TaxRate = TaxRateModel(sequelize);
 const ServiceFeeRate = ServiceFeeRateModel(sequelize);
@@ -27,12 +27,12 @@ Users.associate({
   CustomerDetails,
   CustomerAddress,
   DigitalPurchase,
-  DigitalHolding,
+  DigitalHoldings,
 });
 CustomerDetails.associate({ Users, CustomerAddress });
 CustomerAddress.associate({ Users, CustomerDetails });
-DigitalPurchase.associate({ Users, DigitalHolding });
-DigitalHolding.associate({ Users, DigitalPurchase });
+DigitalPurchase.associate({ Users, DigitalHoldings });
+DigitalHoldings.associate({ Users, DigitalPurchase });
 
 const customerController = new CustomerController(
   Users,
@@ -42,7 +42,7 @@ const customerController = new CustomerController(
   MaterialRate,
   TaxRate,
   ServiceFeeRate,
-  DigitalHolding,
+  DigitalHoldings,
   PhysicalRedeem,
 );
 

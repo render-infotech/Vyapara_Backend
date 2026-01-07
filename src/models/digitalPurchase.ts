@@ -1,7 +1,7 @@
 import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import crypto from 'crypto';
 import Users from './users';
-import DigitalHolding from './digitalHolding';
+import DigitalHoldings from './digitalHoldings';
 import CustomerDetails from './customerDetails';
 
 // Define attributes for the DigitalPurchase model
@@ -103,7 +103,7 @@ class DigitalPurchase
     user: Association<Users, InstanceType<typeof Users>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
-    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
+    digitalHoldings: Association<DigitalHoldings, InstanceType<typeof DigitalHoldings>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     customerDetails: Association<CustomerDetails, InstanceType<typeof CustomerDetails>>;

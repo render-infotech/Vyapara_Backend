@@ -10,7 +10,7 @@ import VendorDetailsModel from '../models/vendorDetails';
 import MaterialRateModel from '../models/materialRate';
 import CustomerAddressModel from '../models/customerAddress';
 import OtpLogModel from '../models/otpLog';
-import DigitalHoldingModel from '../models/digitalHolding';
+import DigitalHoldingModel from '../models/digitalHoldings';
 import ServiceControlModel from '../models/serviceControl';
 import { sendSms, hashOtp } from '../utils/sms';
 import { Op } from 'sequelize';

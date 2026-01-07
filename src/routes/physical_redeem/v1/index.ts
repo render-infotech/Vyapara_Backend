@@ -6,7 +6,7 @@ import PhysicalRedeemModel from '../../../models/physicalRedeem';
 import UsersModel from '../../../models/users';
 import CustomerDetailsModel from '../../../models/customerDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
-import DigitalHoldingModel from '../../../models/digitalHolding';
+import DigitalHoldingsModel from '../../../models/digitalHoldings';
 import MaterialRateModel from '../../../models/materialRate';
 import VendorDetailsModel from '../../../models/vendorDetails';
 import RiderDetailsModel from '../../../models/riderDetails';
@@ -22,7 +22,7 @@ const Users = UsersModel(sequelize);
 const CustomerDetails = CustomerDetailsModel(sequelize);
 const CustomerAddress = CustomerAddressModel(sequelize);
 const MaterialRate = MaterialRateModel(sequelize);
-const DigitalHolding = DigitalHoldingModel(sequelize);
+const DigitalHoldings = DigitalHoldingsModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
 const RiderDetails = RiderDetailsModel(sequelize);
 const Products = ProductsModel(sequelize);
@@ -34,14 +34,14 @@ PhysicalRedeem.associate({ Users, CustomerDetails, CustomerAddress, VendorDetail
 Users.associate({
   CustomerDetails,
   CustomerAddress,
-  DigitalHolding,
+  DigitalHoldings,
   VendorDetails,
   PhysicalRedeem,
   OtpLog,
 });
-CustomerDetails.associate({ Users, CustomerAddress, DigitalHolding, PhysicalRedeem });
+CustomerDetails.associate({ Users, CustomerAddress, DigitalHoldings, PhysicalRedeem });
 CustomerAddress.associate({ Users, CustomerDetails, PhysicalRedeem });
-DigitalHolding.associate({ Users, CustomerDetails });
+DigitalHoldings.associate({ Users, CustomerDetails });
 VendorDetails.associate({ Users, PhysicalRedeem });
 OtpLog.associate({ Users });
 
@@ -51,7 +51,7 @@ const physicalRedeemController = new PhysicalRedeemController(
   CustomerDetails,
   CustomerAddress,
   MaterialRate,
-  DigitalHolding,
+  DigitalHoldings,
   VendorDetails,
   RiderDetails,
   Products,

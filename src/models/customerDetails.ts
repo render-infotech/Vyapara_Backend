@@ -2,7 +2,7 @@ import { DataTypes, Model, Sequelize, Optional } from 'sequelize';
 import Users from './users';
 import CustomerAddress from './customerAddress';
 import DigitalPurchase from './digitalPurchase';
-import DigitalHolding from './digitalHolding';
+import DigitalHoldings from './digitalHoldings';
 import PhysicalRedeem from './physicalRedeem';
 import PhysicalDeposit from './physicalDeposit';
 
@@ -60,7 +60,7 @@ class CustomerDetails
     digitalPurchase: Association<DigitalPurchase, InstanceType<typeof DigitalPurchase>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
-    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
+    digitalHoldings: Association<DigitalHoldings, InstanceType<typeof DigitalHoldings>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
     physicalRedeem: Association<PhysicalRedeem, InstanceType<typeof PhysicalRedeem>>;
@@ -99,7 +99,7 @@ class CustomerDetails
     }
     // eslint-disable-next-line no-prototype-builtins
     if (models.hasOwnProperty('DigitalHoldings')) {
-      this.hasMany(models.DigitalHolding, {
+      this.hasMany(models.DigitalHoldings, {
         foreignKey: 'customer_id',
         sourceKey: 'customer_id',
         as: 'digitalHoldings',

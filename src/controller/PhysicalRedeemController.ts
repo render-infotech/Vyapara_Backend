@@ -15,7 +15,7 @@ import PhysicalRedeemModel from '../models/physicalRedeem';
 import CustomerDetailsModel from '../models/customerDetails';
 import CustomerAddressModel from '../models/customerAddress';
 import MaterialRateModel from '../models/materialRate';
-import DigitalHoldingModel from '../models/digitalHolding';
+import DigitalHoldingModel from '../models/digitalHoldings';
 import VendorDetailsModel from '../models/vendorDetails';
 import RiderDetailsModel from '../models/riderDetails';
 import ProductsModel from '../models/products';

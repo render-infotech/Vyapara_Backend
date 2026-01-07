@@ -10,7 +10,7 @@ import MaterialRateModel from '../../../models/materialRate';
 import VendorDetailsModel from '../../../models/vendorDetails';
 import CustomerAddressModel from '../../../models/customerAddress';
 import OtpLogModel from '../../../models/otpLog';
-import DigitalHoldingModel from '../../../models/digitalHolding';
+import DigitalHoldingsModel from '../../../models/digitalHoldings';
 import ServiceControlModel from '../../../models/serviceControl';
 
 import ControllerRoutes from './physical_deposit';
@@ -23,7 +23,7 @@ const MaterialRate = MaterialRateModel(sequelize);
 const VendorDetails = VendorDetailsModel(sequelize);
 const CustomerAddress = CustomerAddressModel(sequelize);
 const OtpLog = OtpLogModel(sequelize);
-const DigitalHolding = DigitalHoldingModel(sequelize);
+const DigitalHoldings = DigitalHoldingsModel(sequelize);
 const ServiceControl = ServiceControlModel(sequelize);
 
 Users.associate({
@@ -32,15 +32,15 @@ Users.associate({
   PhysicalDeposit,
   CustomerAddress,
   OtpLog,
-  DigitalHolding,
+  DigitalHoldings,
 });
 CustomerDetails.associate({ Users, PhysicalDeposit, CustomerAddress });
 VendorDetails.associate({ Users, PhysicalDeposit });
-PhysicalDeposit.associate({ PhysicalDepositProducts, Users, CustomerDetails, VendorDetails, DigitalHolding });
+PhysicalDeposit.associate({ PhysicalDepositProducts, Users, CustomerDetails, VendorDetails, DigitalHoldings });
 PhysicalDepositProducts.associate({ PhysicalDeposit });
 CustomerAddress.associate({ Users, CustomerDetails });
 OtpLog.associate({ Users });
-DigitalHolding.associate({ Users, PhysicalDeposit });
+DigitalHoldings.associate({ Users, PhysicalDeposit });
 
 const physicalDepositController = new PhysicalDepositController(
   PhysicalDeposit,
@@ -51,7 +51,7 @@ const physicalDepositController = new PhysicalDepositController(
   MaterialRate,
   CustomerAddress,
   OtpLog,
-  DigitalHolding,
+  DigitalHoldings,
   ServiceControl,
 );
 

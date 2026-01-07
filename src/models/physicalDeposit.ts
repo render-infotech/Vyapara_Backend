@@ -4,7 +4,7 @@ import Users from './users';
 import VendorDetails from './vendorDetails';
 import CustomerDetails from './customerDetails';
 import PhysicalDepositProducts from './physicalDepositProducts';
-import DigitalHolding from './digitalHolding';
+import DigitalHoldings from './digitalHoldings';
 
 // Define attributes for the PhysicalRedeem model
 interface PhysicalDepositAttributes {
@@ -85,7 +85,7 @@ class PhysicalDeposit
     physicalDepositProducts: Association<PhysicalDepositProducts, InstanceType<typeof PhysicalDepositProducts>>;
     // @ts-ignore
     // eslint-disable-next-line no-use-before-define
-    digitalHolding: Association<DigitalHolding, InstanceType<typeof DigitalHolding>>;
+    digitalHoldings: Association<DigitalHoldings, InstanceType<typeof DigitalHoldings>>;
   };
 
   /**
@@ -126,8 +126,8 @@ class PhysicalDeposit
       });
     }
     // eslint-disable-next-line no-prototype-builtins
-    if (models.hasOwnProperty('DigitalHolding')) {
-      this.hasOne(models.DigitalHolding, {
+    if (models.hasOwnProperty('DigitalHoldings')) {
+      this.hasOne(models.DigitalHoldings, {
         foreignKey: 'deposit_id',
         as: 'digitalHoldings',
       });

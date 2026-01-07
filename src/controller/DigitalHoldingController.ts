@@ -17,7 +17,7 @@ import DigitalPurchaseModel from '../models/digitalPurchase';
 import MaterialRateModel from '../models/materialRate';
 import TaxRateModel from '../models/taxRate';
 import ServiceFeeRateModel from '../models/serviceFeeRate';
-import DigitalHoldingModel from '../models/digitalHolding';
+import DigitalHoldingModel from '../models/digitalHoldings';
 import PhysicalRedeemModel from '../models/physicalRedeem';
 import PhysicalDepositModel from '../models/physicalDeposit';
 import VendorDetailsModel from '../models/vendorDetails';
