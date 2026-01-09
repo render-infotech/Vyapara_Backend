@@ -8,7 +8,12 @@ import DigitalPurchaseModel from '../models/digitalPurchase';
 import PhysicalRedeemModel from '../models/physicalRedeem';
 import PhysicalDepositModel from '../models/physicalDeposit';
 import { Op } from 'sequelize';
-import { prepareJSONResponse, generateUserInactiveReport, generateUserActiveReport } from '../utils/utils';
+import {
+  prepareJSONResponse,
+  generateUserInactiveReport,
+  generateUserActiveReport,
+  generateUserUnverifiedReport,
+} from '../utils/utils';
 
 export default class ReportsController {
   // @ts-ignore
@@ -397,6 +402,141 @@ export default class ReportsController {
       }
     }
     logger.info(`userInactiveReport Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
+    return res.status(responseData.status).json(responseData);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async getUserUnverifiedReport(
+    start_date: string,
+    end_date: string,
+    customer_id: Number = null,
+    template: Number = 0,
+  ) {
+    const userWhere: any = {
+      status: 1,
+      role_id: predefinedRoles?.User?.id,
+      created_at: {
+        [Op.between]: [start_date, end_date],
+      },
+    };
+    if (customer_id) {
+      userWhere.id = customer_id;
+    }
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const unverifiedUserData = await this.usersModel.findAll({
+      where: userWhere,
+      attributes: [
+        'id',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'email',
+        'phone_country_code',
+        'phone',
+        'gender',
+        'created_at',
+      ],
+    });
+
+    logger.info(`getUserUnverifiedReport - fetched all inactive customers data ${JSON.stringify(unverifiedUserData)}`);
+
+    if (unverifiedUserData.length > 0) {
+      const adminData = await this.getAdminUser();
+
+      const responseData = {
+        headers: {
+          name: 'VYAPAR-E',
+          logo: adminData?.profile_pic ?? '#',
+          reportGeneratedOn: new Date().toISOString().split('T')[0],
+          disclaimer: 'Users listed in this report are registered customers whose KYC verification is pending',
+        },
+        filters: {
+          start_date,
+          end_date,
+          customer_code: customer_id === null ? 'All' : null,
+        },
+        data: [],
+        total_users: 0,
+      };
+
+      if (responseData.filters.customer_code === null) {
+        responseData.filters.customer_code = unverifiedUserData[0]?.user?.name ?? 'NA';
+      }
+
+      const reportData: any[] = [];
+
+      await Promise.all(
+        unverifiedUserData.map(async (user: any) => {
+          const row: any = {};
+
+          row.id = user.id;
+          row.name = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ');
+          row.email = user.email;
+          row.contact = user.phone;
+          row.gender = user.gender === 1 ? 'Male' : user.gender === 2 ? 'Female' : 'Others';
+          row.Registration_date = user.created_at;
+
+          reportData.push(row);
+          return null;
+        }),
+      );
+
+      reportData.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+
+      responseData.data = reportData;
+      responseData.total_users = reportData?.length ?? 0;
+
+      if (template === 1) {
+        const templateData = await generateUserUnverifiedReport(responseData);
+        return templateData;
+      }
+
+      return responseData;
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  async userUnverifiedReport(req: Request, res: Response) {
+    const mandatoryFields = ['start_date', 'end_date', 'template'];
+    const requestBody = req.query;
+
+    const now = new Date();
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0)).toISOString();
+    const endOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+    ).toISOString();
+
+    if (!requestBody.start_date || !requestBody.end_date) {
+      requestBody.start_date = startOfMonth.slice(0, 10);
+      requestBody.end_date = endOfMonth.slice(0, 10);
+    }
+    const missingFields = mandatoryFields.filter((field) => !requestBody[field]);
+
+    let responseData: typeof prepareJSONResponse;
+
+    if (missingFields.length > 0) {
+      const message = `Missing required fields: ${missingFields.join(', ')}`;
+      responseData = prepareJSONResponse({}, message, statusCodes.BAD_REQUEST);
+    } else {
+      try {
+        const { start_date, end_date, customer_id, template } = requestBody;
+
+        const userUnverifiedReportData = await this.getUserUnverifiedReport(
+          start_date.toString(),
+          end_date.toString(),
+          customer_id ? Number(customer_id) : null,
+          Number(template) || 0,
+        );
+        responseData = prepareJSONResponse(userUnverifiedReportData, 'Success', statusCodes.OK);
+      } catch (error) {
+        logger.error('Error retrieving in userUnverifiedReport.', error);
+        responseData = prepareJSONResponse({ error: 'Error Exception.' }, 'Error', statusCodes.INTERNAL_SERVER_ERROR);
+      }
+    }
+    logger.info(`userUnverifiedReport Req and Res: ${JSON.stringify(requestBody)} - ${JSON.stringify(responseData)}`);
     return res.status(responseData.status).json(responseData);
   }
 }

@@ -4,6 +4,7 @@ import logger from './logger';
 import { statusCodes } from './constants';
 import { UserInactiveReportTemplate } from './templates/user-inactive-report';
 import { UserActiveReportTemplate } from './templates/user-active-report';
+import { UserUnverifiedReportTemplate } from './templates/user-unverified-report';
 
 export const prepareJSONResponse = (data = [] || {}, message = null, status = statusCodes.OK) => ({
   data,
@@ -133,20 +134,6 @@ export const getLocationFromIP = async (ip = null) => {
 
 export const notNull = (val) => val !== null && val !== undefined && val !== 'null' && val !== 'undefined';
 
-export const generateUserInactiveReport = async (data) => {
-  let userInactiveReport = null;
-  try {
-    const params = { data };
-    const userInactiveReportTemplate = UserInactiveReportTemplate(params);
-    logger.info(`userInactiveReport Template - ${userInactiveReportTemplate}`);
-    userInactiveReport = userInactiveReportTemplate;
-  } catch (e) {
-    logger.error('Error in userInactiveReport', e);
-  }
-  logger.info(`userInactiveReport Response - ${JSON.stringify(userInactiveReport)}`);
-  return userInactiveReport;
-};
-
 export const generateUserActiveReport = async (data) => {
   let userActiveReport = null;
   try {
@@ -161,6 +148,34 @@ export const generateUserActiveReport = async (data) => {
   return userActiveReport;
 };
 
+export const generateUserInactiveReport = async (data) => {
+  let userInactiveReport = null;
+  try {
+    const params = { data };
+    const userInactiveReportTemplate = UserInactiveReportTemplate(params);
+    logger.info(`userInactiveReport Template - ${userInactiveReportTemplate}`);
+    userInactiveReport = userInactiveReportTemplate;
+  } catch (e) {
+    logger.error('Error in userInactiveReport', e);
+  }
+  logger.info(`userInactiveReport Response - ${JSON.stringify(userInactiveReport)}`);
+  return userInactiveReport;
+};
+
+export const generateUserUnverifiedReport = async (data) => {
+  let userUnverifiedReport = null;
+  try {
+    const params = { data };
+    const userUnverifiedReportTemplate = UserUnverifiedReportTemplate(params);
+    logger.info(`userUnverifiedReport Template - ${userUnverifiedReportTemplate}`);
+    userUnverifiedReport = userUnverifiedReportTemplate;
+  } catch (e) {
+    logger.error('Error in userUnverifiedReport', e);
+  }
+  logger.info(`userUnverifiedReport Response - ${JSON.stringify(userUnverifiedReport)}`);
+  return userUnverifiedReport;
+};
+
 const Utils = {
   prepareJSONResponse,
   createValidator,
@@ -170,8 +185,9 @@ const Utils = {
   decryptData,
   getLocationFromIP,
   notNull,
-  generateUserInactiveReport,
   generateUserActiveReport,
+  generateUserInactiveReport,
+  generateUserUnverifiedReport,
 };
 
 export default Utils;

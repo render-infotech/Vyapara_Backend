@@ -159,6 +159,5 @@ const userInactiveReportTemplate = `
 `;
 
 export const UserInactiveReportTemplate = (context) => handlebars.compile(minifiedTemplate)(context);
-// export const getIndividualTemplate = (context) => handlebars.compile(userInactiveReportTemplate)(context);
 
 export default UserInactiveReportTemplate;

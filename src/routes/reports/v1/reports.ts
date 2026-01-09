@@ -7,6 +7,7 @@ const router = express.Router();
 export default (reportsController: ReportsController) => {
   router.get('/users/active', Authentication(), reportsController.userActiveReport.bind(reportsController));
   router.get('/users/inactive', Authentication(), reportsController.userInactiveReport.bind(reportsController));
+  router.get('/users/unverified', Authentication(), reportsController.userUnverifiedReport.bind(reportsController));
 
   return router;
 };
