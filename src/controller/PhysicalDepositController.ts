@@ -740,7 +740,7 @@ export default class PhysicalDepositController {
             const emailStatus = await sendEmail(
               recordExists?.email,
               emailBody,
-              `Vyapara - Physical Deposit - ${depositRecord?.deposit_code}`,
+              `VYAPAR-E - Physical Deposit - ${depositRecord?.deposit_code}`,
             );
             logger.info(
               `summaryPhysicalDeposit Summary mail Status: ${recordExists?.email} ${JSON.stringify(emailStatus)}`,

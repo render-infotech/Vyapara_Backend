@@ -48,6 +48,7 @@ functions:
   - ${file(./src/routes/physical_deposit/v1/physical_deposit.yml)}
   - ${file(./src/routes/content_page/v1/content_page.yml)}
   - ${file(./src/routes/service_control/v1/service_control.yml)}
+  - ${file(./src/routes/reports/v1/reports.yml)}
 
 plugins:
   - serverless-offline
@@ -83,11 +84,11 @@ custom:
     API_ENDPOINT: ${env:API_ENDPOINT}
     # FRONTEND_URL: ${env:FRONTEND_URL}
     # INTERNAL_KEY: ${env:INTERNAL_KEY}
-    # EMAIL_HOST: ${env:EMAIL_HOST}
-    # EMAIL_PORT: ${env:EMAIL_PORT}
-    # EMAIL_SSL: ${env:EMAIL_SSL}
-    # EMAIL_USER: ${env:EMAIL_USER}
-    # EMAIL_PASSWORD: ${env:EMAIL_PASSWORD}
+    EMAIL_HOST: ${env:EMAIL_HOST}
+    EMAIL_PORT: ${env:EMAIL_PORT}
+    EMAIL_SSL: ${env:EMAIL_SSL}
+    EMAIL_USER: ${env:EMAIL_USER}
+    EMAIL_PASSWORD: ${env:EMAIL_PASSWORD}
     # TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
     # TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
     # TWILIO_PHONE_NUMBER: ${env:TWILIO_PHONE_NUMBER}

@@ -175,7 +175,7 @@ export const physicalDepositSummary = (fullName, otp, depositSummary, products) 
         <!-- Footer -->
         <mj-text css-class="footer">
           <p>
-            This is an automated message from <strong>Vyapara</strong>. Please do not reply.
+            This is an automated message from <strong>VYAPAR-E</strong>. Please do not reply.
           </p>
         </mj-text>
 
